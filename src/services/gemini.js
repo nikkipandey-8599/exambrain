@@ -1,25 +1,8 @@
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { gradeOffline } from '../utils/helpers'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL = 'llama-3.3-70b-versatile'
-
-async function callGroq(prompt) {
-  const res = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7
-    })
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error?.message || 'Groq API error')
-  return data.choices[0].message.content
-}
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY)
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
 export async function generateExamContent(notes) {
   const prompt = `You are an expert exam preparation AI. Analyze the following student notes and generate comprehensive exam content.
@@ -34,7 +17,7 @@ Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this
       "question": "Question text here?",
       "options": ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"],
       "answer": "A. First option",
-      "explanation": "Why this answer is correct",
+      "explanation": "Why this answer is correct and others are wrong",
       "difficulty": "easy",
       "subtopic": "Specific subtopic name"
     }
@@ -43,7 +26,7 @@ Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this
     {
       "id": "sa1",
       "question": "Short answer question?",
-      "modelAnswer": "The ideal complete answer",
+      "modelAnswer": "The ideal complete answer to this question",
       "keyPoints": ["Key point 1", "Key point 2", "Key point 3"],
       "difficulty": "medium",
       "subtopic": "Specific subtopic name"
@@ -60,17 +43,20 @@ Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this
 }
 
 Rules:
-- Generate EXACTLY 10 MCQs: 4 easy, 4 medium, 2 hard
+- Generate EXACTLY 10 MCQs: 4 easy, 4 medium, 2 hard (in that order)
 - Generate EXACTLY 5 short answer questions
 - Generate EXACTLY 12 flashcards
+- MCQ options must be plausible distractors, not obviously wrong
+- Each question must have a unique subtopic tag
 - difficulty must be exactly "easy", "medium", or "hard"
 
 Student Notes:
 ${notes}`
 
-  const text = await callGroq(prompt)
-  const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
-
+  const result = await model.generateContent(prompt)
+  const text = result.response.text()
+  const clean = text.replace(/```json|```/g, '').trim()
+  
   let parsed
   try {
     parsed = JSON.parse(clean)
@@ -88,8 +74,10 @@ ${notes}`
 }
 
 export async function gradeShortAnswer(question, modelAnswer, keyPoints, userAnswer) {
-  if (!navigator.onLine) return gradeOffline(userAnswer, modelAnswer, keyPoints)
-
+  if (!navigator.onLine) {
+    return gradeOffline(userAnswer, modelAnswer, keyPoints)
+  }
+  
   const prompt = `Grade this student answer. Return ONLY valid JSON, no markdown.
 
 Question: ${question}
@@ -101,13 +89,13 @@ Student Answer: ${userAnswer}
   "score": <number 0-100>,
   "isCorrect": <true if score >= 70>,
   "feedback": "One sentence of specific feedback",
-  "missedPoints": ["key point they missed"]
+  "missedPoints": ["key point they missed", "another missed point"]
 }`
 
   try {
-    const text = await callGroq(prompt)
-    const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
-    return JSON.parse(clean)
+    const result = await model.generateContent(prompt)
+    const text = result.response.text().replace(/```json|```/g, '').trim()
+    return JSON.parse(text)
   } catch {
     return gradeOffline(userAnswer, modelAnswer, keyPoints)
   }

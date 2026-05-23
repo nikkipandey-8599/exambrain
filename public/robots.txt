@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://exambrain.vercel.app/sitemap.xml

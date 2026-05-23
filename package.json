@@ -1,7 +1,7 @@
 {
   "name": "exambrain",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,11 +10,16 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "canvas-confetti": "^1.9.4",
+    "html2canvas": "^1.4.1",
     "idb": "^8.0.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.15.1",
     "zustand": "^4.5.4"
   },
   "devDependencies": {

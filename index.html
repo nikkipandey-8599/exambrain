@@ -3,18 +3,77 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Primary Meta -->
+  <title>ExamBrain — AI Exam Prep from Your Notes | Free PWA</title>
+  <meta name="description" content="Paste your lecture notes and get 10 AI-generated MCQs, 5 short answer questions, 12 flashcards and a full score report instantly. Free, works offline, installs on your phone." />
+  <meta name="keywords" content="AI exam prep, study app, flashcards, MCQ generator, notes to quiz, exam preparation, free study tool, PWA" />
+  <meta name="author" content="Nikki Pandey" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://exambrain.vercel.app" />
+
+  <!-- Theme -->
   <meta name="theme-color" content="#4f6ef7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ExamBrain" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <meta property="og:title" content="ExamBrain — AI Exam Prep" />
-  <meta property="og:description" content="Turn your notes into quizzes, flashcards and exam reports using AI" />
+
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://exambrain.vercel.app" />
+  <meta property="og:title" content="ExamBrain — Turn Notes into AI Quizzes Instantly" />
+  <meta property="og:description" content="Paste your lecture notes → get 10 MCQs, flashcards & a score report in seconds. Free AI-powered exam prep PWA. Works on phone, works offline." />
+  <meta property="og:image" content="https://exambrain.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="ExamBrain" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://exambrain.vercel.app" />
+  <meta name="twitter:title" content="ExamBrain — AI Exam Prep from Your Notes" />
+  <meta name="twitter:description" content="Paste your notes → get quizzes, flashcards & a full score report instantly. Free PWA, works offline." />
+  <meta name="twitter:image" content="https://exambrain.vercel.app/og-image.png" />
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <title>ExamBrain — AI Exam Prep</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "ExamBrain",
+        "url": "https://exambrain.vercel.app",
+        "description": "AI-powered exam prep PWA that converts lecture notes into quizzes, flashcards and score reports",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": ["AI MCQ generation", "Flashcards", "Short answer grading", "Offline support", "PWA installable"],
+        "author": { "@type": "Person", "name": "Nikki Pandey" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is ExamBrain free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, ExamBrain is completely free to use. No signup required, no credit card, no limits." } },
+          { "@type": "Question", "name": "What does ExamBrain generate from my notes?", "acceptedAnswer": { "@type": "Answer", "text": "ExamBrain generates 10 multiple choice questions with explanations, 5 short answer questions with AI grading, and 12 flashcards from your notes." } },
+          { "@type": "Question", "name": "Can I use ExamBrain on my phone?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. ExamBrain is a Progressive Web App (PWA) that can be installed on Android and iOS directly from your browser, with no App Store required." } },
+          { "@type": "Question", "name": "Does ExamBrain work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. After your first visit, ExamBrain works fully offline using a service worker and IndexedDB storage." } }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <div id="root"></div>

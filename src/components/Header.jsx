@@ -1,52 +1,39 @@
-import { Wifi, WifiOff, Brain, Sun, Moon } from 'lucide-react'
-import { useOnlineStatus } from '../hooks/useOnlineStatus'
-import useExamStore from '../store/examStore'
+import { Moon, Sun, Zap } from 'lucide-react'
+import UserMenu from './UserMenu'
 
-export default function Header({ theme, onToggleTheme }) {
-  const isOnline = useOnlineStatus()
-  const { examContent } = useExamStore()
-
+export default function Header({ theme, onToggleTheme, streak, onGoHome, user, onSignOut, onShowAuth }) {
   return (
     <header style={{
-      position: 'sticky', top: 0, zIndex: 50,
-      background: 'var(--header-bg)',
-      backdropFilter: 'blur(12px)',
+      position: 'sticky', top: 0, zIndex: 100,
+      background: 'var(--header-bg)', backdropFilter: 'blur(12px)',
       borderBottom: '1px solid var(--border)',
       padding: '0.75rem 1.25rem',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
     }}>
+      <button
+        onClick={onGoHome}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--brand-400)', letterSpacing: '-0.02em' }}>
+          🧠 ExamBrain
+        </span>
+      </button>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Brain size={22} color="var(--brand-400)" />
-        <div>
-          <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>ExamBrain</span>
-          {examContent?.topic && (
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: 1 }}>{examContent.topic}</p>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Online status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isOnline
-            ? <><Wifi size={14} color="var(--success)" /><span style={{ fontSize: '0.7rem', color: 'var(--success)' }}>Online</span></>
-            : <><WifiOff size={14} color="var(--warning)" /><span style={{ fontSize: '0.7rem', color: 'var(--warning)' }}>Offline</span></>
-          }
-        </div>
-
-        {/* Theme toggle */}
-        <button
-          onClick={onToggleTheme}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          style={{
-            width: 34, height: 34, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', transition: 'all 0.2s'
-          }}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        {streak > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)',
+            borderRadius: 8, padding: '0.25rem 0.6rem'
+          }}>
+            <Zap size={12} color="var(--warning)" />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--warning)' }}>{streak}</span>
+          </div>
+        )}
+        <button onClick={onToggleTheme} className="btn-ghost" aria-label="Toggle theme" style={{ padding: '0.4rem' }}>
+          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
+        <UserMenu user={user} onSignOut={onSignOut} onShowAuth={onShowAuth} />
       </div>
     </header>
   )

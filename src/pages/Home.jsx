@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, X, ChevronDown, ChevronUp, Zap, BookOpen } from 'lucide-react'
+import { Upload, X, ChevronDown, ChevronUp, Zap, BookOpen, FileText } from 'lucide-react'
 import useExamStore from '../store/examStore'
 import { generateExamContent } from '../services/gemini'
 import { saveSession, saveNote } from '../services/db'
@@ -8,6 +8,7 @@ import { MAX_CHARS, MIN_CHARS, WARN_THRESHOLD, SAMPLE_NOTES } from '../utils/con
 import { showToast } from '../components/Toast'
 import NotesEditor from '../components/NotesEditor'
 import SubjectLibrary from './SubjectLibrary'
+import { parseFile, SUPPORTED_TYPES, MAX_FILE_SIZE_MB } from '../services/fileParser'
 
 const STAGES = [
   { label: 'Saving your notes…', pct: 10 },
@@ -25,21 +26,31 @@ export default function Home({ setScreen, user }) {
   const [sampleOpen, setSampleOpen] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const fileRef = useRef()
   const charCount = notes.length
   const nearLimit = charCount >= MAX_CHARS * WARN_THRESHOLD
   const overLimit = charCount > MAX_CHARS
-  const canGenerate = charCount >= MIN_CHARS && !overLimit && !isGenerating
+  const canGenerate = charCount >= MIN_CHARS && !overLimit && !isGenerating && !parsing
 
-  function handleFile(file) {
+  async function handleFile(file) {
     if (!file) return
-    if (file.size > 1024 * 1024) { showToast.error('File too large. Max 1MB.'); return }
-    const ext = file.name.split('.').pop().toLowerCase()
-    if (!['txt', 'md'].includes(ext)) { showToast.error('Only .txt and .md files supported.'); return }
-    const reader = new FileReader()
-    reader.onload = e => { setNotes(e.target.result.slice(0, MAX_CHARS)); showToast.success(`Loaded ${file.name}`) }
-    reader.readAsText(file)
     setGenerateError(null)
+    setParsing(true)
+    const ext = file.name.split('.').pop().toLowerCase()
+    const isImage = ['png','jpg','jpeg','webp'].includes(ext)
+    showToast.info(isImage ? `Reading image with OCR… this takes ~15s` : `Parsing ${file.name}…`)
+    try {
+      const text = await parseFile(file)
+      setNotes(text.slice(0, MAX_CHARS))
+      const truncated = text.length > MAX_CHARS ? ` (truncated to ${MAX_CHARS.toLocaleString()} chars)` : ''
+      showToast.success(`✅ Loaded ${file.name}${truncated}`)
+    } catch (e) {
+      showToast.error(e.message || 'Could not parse file')
+      setGenerateError(e.message)
+    } finally {
+      setParsing(false)
+    }
   }
 
   async function handleGenerate() {
@@ -162,19 +173,37 @@ export default function Home({ setScreen, user }) {
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
-        onClick={() => fileRef.current.click()}
+        onClick={() => !parsing && fileRef.current.click()}
         style={{
-          border: `2px dashed ${dragOver ? 'var(--brand-500)' : 'var(--border-strong)'}`,
-          borderRadius: 14, padding: '0.9rem', marginBottom: 10,
-          textAlign: 'center', cursor: 'pointer',
-          background: dragOver ? 'rgba(79,110,247,0.06)' : 'transparent', transition: 'all 0.2s'
+          border: `2px dashed ${dragOver ? 'var(--brand-500)' : parsing ? 'var(--brand-500)' : 'var(--border-strong)'}`,
+          borderRadius: 14, padding: '1rem', marginBottom: 10,
+          textAlign: 'center', cursor: parsing ? 'not-allowed' : 'pointer',
+          background: dragOver ? 'rgba(79,110,247,0.06)' : parsing ? 'rgba(79,110,247,0.04)' : 'transparent',
+          transition: 'all 0.2s'
         }}
       >
-        <Upload size={18} color={dragOver ? 'var(--brand-400)' : 'var(--text-muted)'} style={{ margin: '0 auto 6px', display: 'block' }} />
-        <p style={{ fontSize: '0.82rem', color: dragOver ? 'var(--brand-400)' : 'var(--text-secondary)' }}>
-          Drop .txt or .md file, or <span style={{ color: 'var(--brand-400)', fontWeight: 500 }}>browse</span>
-        </p>
-        <input ref={fileRef} type="file" accept=".txt,.md" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+        {parsing ? (
+          <>
+            <div className="animate-spin" style={{ width: 20, height: 20, border: '2px solid var(--border-strong)', borderTopColor: 'var(--brand-500)', borderRadius: '50%', margin: '0 auto 8px' }} />
+            <p style={{ fontSize: '0.82rem', color: 'var(--brand-400)' }} className="animate-pulseSoft">Parsing file…</p>
+          </>
+        ) : (
+          <>
+            <Upload size={18} color={dragOver ? 'var(--brand-400)' : 'var(--text-muted)'} style={{ margin: '0 auto 6px', display: 'block' }} />
+            <p style={{ fontSize: '0.82rem', color: dragOver ? 'var(--brand-400)' : 'var(--text-secondary)', marginBottom: 6 }}>
+              Drop any file or <span style={{ color: 'var(--brand-400)', fontWeight: 500 }}>browse</span>
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+              {Object.entries(SUPPORTED_TYPES).map(([ext, { label, emoji }]) => (
+                <span key={ext} style={{ fontSize: '0.65rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px', color: 'var(--text-muted)' }}>
+                  {emoji} .{ext}
+                </span>
+              ))}
+            </div>
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 6 }}>Max {MAX_FILE_SIZE_MB}MB · Images use OCR to extract text</p>
+          </>
+        )}
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.md,.rtf,.csv,.json,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
       </div>
 
       {/* Textarea */}
@@ -231,6 +260,11 @@ export default function Home({ setScreen, user }) {
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <span className="animate-spin" style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%' }} />
             Generating…
+          </span>
+        ) : parsing ? (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span className="animate-spin" style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%' }} />
+            Parsing file…
           </span>
         ) : (
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>

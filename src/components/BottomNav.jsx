@@ -1,4 +1,4 @@
-import { Home, BookOpen, CreditCard, BarChart2, Clock, Lock } from 'lucide-react'
+import { Home, BookOpen, CreditCard, BarChart2, Clock, Lock, Star } from 'lucide-react'
 import useExamStore from '../store/examStore'
 
 const tabs = [
@@ -7,6 +7,7 @@ const tabs = [
   { id: 'flashcards', label: 'Cards',    Icon: CreditCard },
   { id: 'report',     label: 'Report',   Icon: BarChart2 },
   { id: 'history',    label: 'History',  Icon: Clock },
+  { id: 'reviews',    label: 'Reviews',  Icon: Star },
 ]
 
 export default function BottomNav({ screen, setScreen }) {
@@ -34,7 +35,7 @@ export default function BottomNav({ screen, setScreen }) {
             onClick={(e) => { if (isLocked) { e.preventDefault(); return } setScreen(id) }}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 3, padding: '0.55rem 0.2rem',
+              gap: 3, padding: '0.55rem 0.1rem',
               background: 'transparent', border: 'none',
               color: isActive ? 'var(--brand-400)' : isLocked ? 'var(--text-muted)' : 'var(--text-secondary)',
               cursor: isLocked ? 'not-allowed' : 'pointer',
@@ -43,10 +44,10 @@ export default function BottomNav({ screen, setScreen }) {
             }}
           >
             <div style={{ position: 'relative' }}>
-              <Icon size={18} />
+              <Icon size={17} />
               {isLocked && <Lock size={8} style={{ position: 'absolute', top: -3, right: -5, color: 'var(--text-muted)' }} />}
             </div>
-            <span style={{ fontSize: '0.6rem', fontWeight: isActive ? 600 : 400 }}>{label}</span>
+            <span style={{ fontSize: '0.55rem', fontWeight: isActive ? 600 : 400 }}>{label}</span>
           </button>
         )
       })}

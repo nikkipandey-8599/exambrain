@@ -13,6 +13,7 @@ import Flashcards from './pages/Flashcards'
 import Report from './pages/Report'
 import History from './pages/History'
 import Auth from './pages/Auth'
+import ReviewSection from './components/ReviewSection'
 import { useTheme } from './hooks/useTheme'
 import { useStreak } from './hooks/useStreak'
 import { useAuth } from './hooks/useAuth'
@@ -93,6 +94,7 @@ export default function App() {
           {screen === 'flashcards' && <Flashcards setScreen={navigate} />}
           {screen === 'report'     && <Report setScreen={navigate} onRecordStudy={handleRecordStudy} user={user} />}
           {screen === 'history'    && <History setScreen={navigate} user={user} />}
+          {screen === 'reviews'    && <ReviewSection user={user} />}
         </div>
       </main>
       <BottomNav screen={screen} setScreen={navigate} />

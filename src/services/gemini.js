@@ -1,15 +1,12 @@
 import { gradeOffline } from '../utils/helpers'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const API_URL = '/api/generate'
 const MODEL = 'llama-3.3-70b-versatile'
 
 async function callGroq(prompt) {
-  const res = await fetch(GROQ_API_URL, {
+  const res = await fetch(API_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
@@ -23,7 +20,6 @@ async function callGroq(prompt) {
 
 export async function generateExamContent(notes) {
   const prompt = `You are an expert exam preparation AI. Analyze the following student notes and generate comprehensive exam content.
-
 Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this exact structure:
 {
   "topic": "Subject name extracted from notes (2-5 words)",
@@ -58,19 +54,16 @@ Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this
     }
   ]
 }
-
 Rules:
 - Generate EXACTLY 10 MCQs: 4 easy, 4 medium, 2 hard
 - Generate EXACTLY 5 short answer questions
 - Generate EXACTLY 12 flashcards
 - difficulty must be exactly "easy", "medium", or "hard"
-
 Student Notes:
 ${notes}`
 
   const text = await callGroq(prompt)
   const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
-
   let parsed
   try {
     parsed = JSON.parse(clean)
@@ -79,31 +72,25 @@ ${notes}`
     if (match) parsed = JSON.parse(match[0])
     else throw new Error('Invalid response format from AI')
   }
-
   if (!parsed.quiz || !parsed.flashcards || !parsed.shortAnswer) {
     throw new Error('Incomplete response — missing required fields')
   }
-
   return parsed
 }
 
 export async function gradeShortAnswer(question, modelAnswer, keyPoints, userAnswer) {
   if (!navigator.onLine) return gradeOffline(userAnswer, modelAnswer, keyPoints)
-
   const prompt = `Grade this student answer. Return ONLY valid JSON, no markdown.
-
 Question: ${question}
 Model Answer: ${modelAnswer}
 Key Points: ${keyPoints.join(', ')}
 Student Answer: ${userAnswer}
-
 {
   "score": <number 0-100>,
   "isCorrect": <true if score >= 70>,
   "feedback": "One sentence of specific feedback",
   "missedPoints": ["key point they missed"]
 }`
-
   try {
     const text = await callGroq(prompt)
     const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()

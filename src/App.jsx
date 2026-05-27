@@ -28,6 +28,7 @@ export default function App() {
   const { streak, newBadge, recordStudy } = useStreak()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const { user, loading, signOut } = useAuth()
+  const [unseenReplies, setUnseenReplies] = useState(0)
 
   useEffect(() => {
     const visited = localStorage.getItem('exambrain-visited')
@@ -94,10 +95,10 @@ export default function App() {
           {screen === 'flashcards' && <Flashcards setScreen={navigate} />}
           {screen === 'report'     && <Report setScreen={navigate} onRecordStudy={handleRecordStudy} user={user} />}
           {screen === 'history'    && <History setScreen={navigate} user={user} />}
-          {screen === 'reviews'    && <ReviewSection user={user} />}
+          {screen === 'reviews'    && <ReviewSection user={user} onUnseenChange={setUnseenReplies} />}
         </div>
       </main>
-      <BottomNav screen={screen} setScreen={navigate} />
+      <BottomNav screen={screen} setScreen={navigate} unseenReplies={unseenReplies} />
     </div>
   )
 }

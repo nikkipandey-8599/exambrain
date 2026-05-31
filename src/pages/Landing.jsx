@@ -341,8 +341,6 @@ export default function Landing({ onEnterApp }) {
             <span style={{ fontSize: '1.1rem' }}>🧠</span>
             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>ExamBrain</span>
           </div>
-       {/* Product Hunt Badge - ADDED HERE */}
-          <a href="https://www.producthunt.com/products/exambrain?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-exambrain" target="_blank" rel="noopener noreferrer"><img alt="ExamBrain - Turn your notes into quizzes &amp; flashcards with AI | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1156388&amp;theme=neutral&amp;t=1779861592409"></a>
           <p style={{ color: '#475569', fontSize: '0.82rem' }}>
             Built by <a href="https://github.com/nikkipandey-8599" style={{ color: '#4f6ef7', textDecoration: 'none' }}>Nikki Pandey</a> · MIT License · Free forever
           </p>

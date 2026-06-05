@@ -50,7 +50,7 @@ const C = {
 const T = {
   en: {
     nav: 'Open App',
-    tag: 'Free · No credit card · Works offline',
+    tag: 'Free · No credit card',
     h1a: 'Turn your notes into',
     h1b: 'an exam toolkit.',
     sub: 'Paste any lecture notes. Get quizzes, flashcards, and a full score report — in seconds.',
@@ -90,7 +90,7 @@ const T = {
   },
   hi: {
     nav: 'ऐप खोलें',
-    tag: 'मुफ़्त · बिना क्रेडिट कार्ड · ऑफलाइन',
+    tag: 'मुफ़्त · बिना क्रेडिट कार्ड',
     h1a: 'अपने नोट्स को बदलें',
     h1b: 'परीक्षा किट में।',
     sub: 'कोई भी नोट्स पेस्ट करें। क्विज़, फ्लैशकार्ड और स्कोर रिपोर्ट — सेकंडों में।',
@@ -245,10 +245,10 @@ export default function Landing({ onEnterApp }) {
         </div>
       </section>
 
-      {/* SOCIAL PROOF BAR */}
+      {/* SOCIAL PROOF BAR - Modified: Removed "No signup required" and "Works offline" */}
       <div style={{ borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, background: C.cream2, padding: '0.9rem 1.5rem' }}>
         <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap' }}>
-          {['Free forever', 'No signup required', 'Works offline', 'Open source', 'AI-powered'].map(s => (
+          {['Free forever', 'Open source', 'AI-powered'].map(s => (
             <span key={s} style={{ fontSize: '0.78rem', color: C.brownM, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 4, height: 4, borderRadius: '50%', background: C.accentL, display: 'inline-block' }} />
               {s}
@@ -343,7 +343,7 @@ export default function Landing({ onEnterApp }) {
             boxShadow: '0 4px 20px rgba(146,64,14,0.25)'
           }}>{t.cta2_b} <ArrowRight size={16} /></button>
           <p style={{ fontSize: '0.78rem', color: C.brownL, marginTop: 14, fontFamily: 'system-ui' }}>
-            Free · No account · Open source on GitHub
+            Free · Open source on GitHub
           </p>
         </FadeIn>
       </section>

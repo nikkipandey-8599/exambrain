@@ -2,64 +2,60 @@
 
 /* ── TOKENS ─────────────────────────────────────────── */
 :root {
-  --amber-100: #FFF8E7;
-  --amber-200: #FDEFC4;
-  --amber-600: #B45309;
-  --amber-700: #92400E;
-  --amber-800: #6B3A0E;
-  --amber-900: #451A03;
-  --ink:        #1C0F00;
-  --ink-80:     #3D2B0A;
-  --ink-60:     #6B5230;
-  --ink-40:     #9B7D52;
-  --ink-20:     #C9AA80;
   --parchment:  #FFFDF2;
   --parchment2: #FAF6E4;
   --parchment3: #F3EDD0;
   --parchment4: #EAE0BC;
+  --amber-600:  #B45309;
+  --amber-700:  #92400E;
+  --amber-800:  #6B3A0E;
+  --ink:        #2C1F05;
+  --ink-80:     #4A3318;
+  --ink-60:     #6B5230;
+  --ink-40:     #9B7D52;
   --success:    #2D6A2D;
   --danger:     #8B1A1A;
   --warning:    #B45309;
-  --brand:      var(--amber-700);
-  --brand-glow: rgba(146,64,14,0.18);
 }
 
-/* ── LIGHT (Cream/Parchment) ─────────────────────────── */
+/* ── LIGHT THEME (Cream/Parchment) ───────────────────── */
 :root, [data-theme="light"] {
-  --bg:            var(--parchment);
-  --bg-card:       var(--parchment2);
-  --bg-secondary:  var(--parchment3);
-  --border:        var(--parchment4);
+  --bg:            #FFFDF2;
+  --bg-card:       #FAF6E4;
+  --bg-secondary:  #F3EDD0;
+  --border:        #E8E0C4;
   --border-strong: #C9B88A;
-  --text-primary:  var(--ink);
-  --text-secondary: var(--ink-80);
-  --text-muted:    var(--ink-60);
-  --input-bg:      var(--parchment2);
-  --header-bg:     rgba(255,253,242,0.94);
+  --text-primary:  #2C1F05;
+  --text-secondary:#4A3318;
+  --text-muted:    #8B7340;
+  --input-bg:      #FAF6E4;
+  --header-bg:     rgba(255,253,242,0.95);
   --nav-bg:        rgba(255,253,242,0.97);
-  --shadow:        rgba(28,15,0,0.08);
-  --brand-400:     var(--amber-600);
-  --brand-500:     var(--amber-700);
-  --brand-600:     var(--amber-800);
+  --shadow:        rgba(44,31,5,0.08);
+  --brand-400:     #B45309;
+  --brand-500:     #92400E;
+  --brand-600:     #6B3A0E;
+  --brand-glow:    rgba(146,64,14,0.15);
 }
 
-/* ── DARK (Warm Dark) ────────────────────────────────── */
+/* ── DARK THEME (Warm Sepia — NOT black) ────────────── */
 [data-theme="dark"] {
-  --bg:            #160E02;
-  --bg-card:       #1E1408;
-  --bg-secondary:  #261C0C;
-  --border:        #362410;
-  --border-strong: #4A3218;
-  --text-primary:  #F5EDD0;
-  --text-secondary: #C9A96E;
+  --bg:            #221608;
+  --bg-card:       #2C1E0A;
+  --bg-secondary:  #36260E;
+  --border:        #4A3418;
+  --border-strong: #5E4422;
+  --text-primary:  #F0E4C4;
+  --text-secondary:#C9A870;
   --text-muted:    #8B6B3A;
-  --input-bg:      #1E1408;
-  --header-bg:     rgba(22,14,2,0.94);
-  --nav-bg:        rgba(22,14,2,0.97);
-  --shadow:        rgba(0,0,0,0.5);
+  --input-bg:      #2C1E0A;
+  --header-bg:     rgba(34,22,8,0.95);
+  --nav-bg:        rgba(34,22,8,0.98);
+  --shadow:        rgba(0,0,0,0.4);
   --brand-400:     #D97706;
   --brand-500:     #B45309;
   --brand-600:     #92400E;
+  --brand-glow:    rgba(180,83,9,0.2);
 }
 
 /* ── BASE ────────────────────────────────────────────── */
@@ -98,7 +94,7 @@ textarea, input { font-family: inherit; }
 /* ── BUTTONS ─────────────────────────────────────────── */
 .btn-primary {
   background: var(--brand-500);
-  color: var(--parchment);
+  color: #FFFDF2;
   border: none;
   border-radius: 10px;
   padding: 0.85rem 1.5rem;
@@ -108,6 +104,7 @@ textarea, input { font-family: inherit; }
   letter-spacing: 0.01em;
   transition: background 0.2s, transform 0.15s, box-shadow 0.2s, opacity 0.2s;
   box-shadow: 0 3px 12px var(--brand-glow);
+  font-family: system-ui, sans-serif;
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--brand-600);
@@ -132,6 +129,7 @@ textarea, input { font-family: inherit; }
   font-size: 0.93rem;
   font-weight: 500;
   transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  font-family: system-ui, sans-serif;
 }
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-secondary);
@@ -161,6 +159,7 @@ textarea, input { font-family: inherit; }
   resize: vertical;
   transition: border-color 0.2s, box-shadow 0.2s;
   line-height: 1.65;
+  font-family: 'Georgia', serif;
 }
 .input-field:focus {
   outline: none;
@@ -204,10 +203,9 @@ textarea, input { font-family: inherit; }
 @keyframes pulseSoft { 0%,100%{opacity:1} 50%{opacity:0.5} }
 @keyframes spin      { to{transform:rotate(360deg)} }
 @keyframes bounceIn  { 0%{transform:scale(0.8);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
-@keyframes shimmer   { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 @keyframes float     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-@keyframes glow      { 0%,100%{box-shadow:0 0 12px var(--brand-glow)} 50%{box-shadow:0 0 28px var(--brand-glow)} }
 @keyframes wiggle    { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-3deg)} 75%{transform:rotate(3deg)} }
+@keyframes glow      { 0%,100%{box-shadow:0 0 10px var(--brand-glow)} 50%{box-shadow:0 0 24px var(--brand-glow)} }
 
 .animate-fadeIn    { animation: fadeIn 0.3s ease forwards; }
 .animate-slideUp   { animation: slideUp 0.35s cubic-bezier(0.4,0,0.2,1) forwards; }
@@ -217,8 +215,8 @@ textarea, input { font-family: inherit; }
 .animate-spin      { animation: spin 0.7s linear infinite; }
 .animate-bounceIn  { animation: bounceIn 0.4s cubic-bezier(0.4,0,0.2,1) forwards; }
 .animate-float     { animation: float 3s ease-in-out infinite; }
-.animate-glow      { animation: glow 2s ease-in-out infinite; }
 .animate-wiggle    { animation: wiggle 0.4s ease; }
+.animate-glow      { animation: glow 2s ease-in-out infinite; }
 
 /* ── STAGGER ─────────────────────────────────────────── */
 .stagger > *:nth-child(1) { animation-delay:0ms }
@@ -234,10 +232,9 @@ textarea, input { font-family: inherit; }
 /* ── ONBOARDING ──────────────────────────────────────── */
 .onboarding-overlay {
   position:fixed; inset:0; z-index:500;
-  background:rgba(22,14,2,0.92);
+  background:rgba(34,22,8,0.94);
   display:flex; align-items:center; justify-content:center;
-  padding:1.5rem;
-  animation:fadeIn 0.3s ease;
+  padding:1.5rem; animation:fadeIn 0.3s ease;
 }
 
 /* ── TOAST ───────────────────────────────────────────── */
@@ -269,7 +266,7 @@ textarea, input { font-family: inherit; }
   animation:bounceIn 0.5s cubic-bezier(0.4,0,0.2,1) forwards;
 }
 
-/* ── VANTA CANVAS ────────────────────────────────────── */
+/* ── VANTA WRAP ──────────────────────────────────────── */
 .vanta-wrap { position:relative; overflow:hidden; }
 .vanta-wrap canvas { position:absolute!important; inset:0; z-index:0; }
 .vanta-content { position:relative; z-index:1; }

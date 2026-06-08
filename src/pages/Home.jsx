@@ -9,7 +9,6 @@ import { showToast } from '../components/Toast'
 import NotesEditor from '../components/NotesEditor'
 import SubjectLibrary from './SubjectLibrary'
 import { parseFile, SUPPORTED_TYPES, MAX_FILE_SIZE_MB } from '../services/fileParser'
-import { loadVanta, initWaves } from '../utils/vanta'
 
 const STAGES = [
   { label: 'Reading your notes…',       pct: 12 },
@@ -29,29 +28,12 @@ export default function Home({ setScreen, user }) {
   const [showLibrary, setShowLibrary] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [parsing, setParsing] = useState(false)
-  const heroRef = useRef(null)
-  const vantaEffect = useRef(null)
   const fileRef = useRef()
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
   const charCount = notes.length
   const nearLimit = charCount >= MAX_CHARS * WARN_THRESHOLD
   const overLimit = charCount > MAX_CHARS
   const canGenerate = charCount >= MIN_CHARS && !overLimit && !isGenerating && !parsing
-
-  // Subtle wave Vanta on hero strip
-  useEffect(() => {
-    if (!examContent) {
-      loadVanta().then(() => {
-        if (heroRef.current && !vantaEffect.current) {
-          vantaEffect.current = initWaves(heroRef.current, isDark)
-        }
-      }).catch(() => {})
-    }
-    return () => {
-      if (vantaEffect.current) { vantaEffect.current.destroy(); vantaEffect.current = null }
-    }
-  }, [examContent, isDark])
 
   async function handleFile(file) {
     if (!file) return
@@ -87,7 +69,11 @@ export default function Home({ setScreen, user }) {
       setExamContent(content)
       setSessionId(sid)
       if (user) {
-        cloudSaveSession(user.id, sid, { topic: content.topic, summary: content.summary, examContent: content, notes, createdAt: new Date().toISOString() }).catch(() => {})
+        cloudSaveSession(user.id, sid, {
+          topic: content.topic, summary: content.summary,
+          examContent: content, notes,
+          createdAt: new Date().toISOString()
+        }).catch(() => {})
       }
       showToast.success(`Ready — ${content.quiz?.length} questions on "${content.topic}"`)
     } catch (e) {
@@ -108,12 +94,16 @@ export default function Home({ setScreen, user }) {
         />
       )}
 
-      {/* ── ACTIVE SESSION CARD ── */}
+      {/* ── ACTIVE SESSION ── */}
       {examContent && (
-        <div className="animate-slideDown" style={{ margin: '1rem 1rem 0', padding: '1rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, borderLeft: '3px solid var(--brand-500)' }}>
+        <div className="animate-slideDown" style={{
+          margin: '1rem 1rem 0', padding: '1rem',
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 14, borderLeft: '3px solid var(--brand-500)'
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
-              <p style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand-500)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'system-ui', marginBottom: 3 }}>
+              <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--brand-500)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'system-ui', marginBottom: 3 }}>
                 Current Session
               </p>
               <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif' }}>{examContent.topic}</p>
@@ -126,10 +116,11 @@ export default function Home({ setScreen, user }) {
           <div style={{ display: 'flex', gap: 8 }}>
             {[['Quiz', 'quiz'], ['Cards', 'flashcards'], ['Report', 'report']].map(([l, s]) => (
               <button key={s} onClick={() => setScreen(s)} style={{
-                flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                flex: 1, background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 color: 'var(--text-secondary)', borderRadius: 8, padding: '0.45rem',
-                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.18s',
-                fontFamily: 'system-ui'
+                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.18s', fontFamily: 'system-ui'
               }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-400)'; e.currentTarget.style.color = 'var(--brand-500)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -139,17 +130,23 @@ export default function Home({ setScreen, user }) {
         </div>
       )}
 
-      {/* ── HERO STRIP with Vanta waves ── */}
+      {/* ── HERO STRIP (no vanta — just styled) ── */}
       {!examContent && (
-        <div ref={heroRef} className="vanta-wrap" style={{ minHeight: 140, margin: 0, borderBottom: '1px solid var(--border)' }}>
-          <div className="vanta-content" style={{ padding: '2rem 1.25rem 1.5rem' }}>
-            <h1 style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6, lineHeight: 1.2 }}>
-              Study Smarter.
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: 300, fontFamily: 'system-ui' }}>
-              Paste your notes and get a complete exam toolkit — quizzes, flashcards, score report.
-            </p>
-          </div>
+        <div style={{
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border)',
+          padding: '2rem 1.25rem 1.5rem',
+          position: 'relative', overflow: 'hidden'
+        }}>
+          {/* Decorative circles */}
+          <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(146,64,14,0.06)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: -20, right: 40, width: 80, height: 80, borderRadius: '50%', background: 'rgba(146,64,14,0.05)', pointerEvents: 'none' }} />
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6, lineHeight: 1.2, position: 'relative' }}>
+            Study Smarter.
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: 300, fontFamily: 'system-ui', position: 'relative' }}>
+            Paste your notes and get a complete exam toolkit — quizzes, flashcards, score report.
+          </p>
         </div>
       )}
 
@@ -183,8 +180,8 @@ export default function Home({ setScreen, user }) {
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s'
         }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-400)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-400)'; e.currentTarget.style.boxShadow = '0 2px 12px var(--brand-glow)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <BookOpen size={16} color="var(--brand-500)" />
@@ -206,7 +203,7 @@ export default function Home({ setScreen, user }) {
             border: `1.5px dashed ${dragOver ? 'var(--brand-500)' : 'var(--border-strong)'}`,
             borderRadius: 12, padding: '1rem', marginBottom: 10,
             textAlign: 'center', cursor: parsing ? 'not-allowed' : 'pointer',
-            background: dragOver ? 'rgba(180,83,9,0.04)' : 'transparent',
+            background: dragOver ? 'rgba(146,64,14,0.04)' : 'transparent',
             transition: 'all 0.2s'
           }}
         >
@@ -283,12 +280,12 @@ export default function Home({ setScreen, user }) {
 
         <button className="btn-primary" onClick={handleGenerate} disabled={!canGenerate}>
           {isGenerating || parsing ? (
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'system-ui' }}>
-              <span className="animate-spin" style={{ display: 'inline-block', width: 15, height: 15, border: '2px solid rgba(255,253,242,0.4)', borderTopColor: 'var(--parchment)', borderRadius: '50%' }} />
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span className="animate-spin" style={{ display: 'inline-block', width: 15, height: 15, border: '2px solid rgba(255,253,242,0.4)', borderTopColor: '#FFFDF2', borderRadius: '50%' }} />
               {parsing ? 'Parsing…' : 'Generating…'}
             </span>
           ) : (
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'system-ui' }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <Zap size={15} /> Generate Exam Prep
             </span>
           )}

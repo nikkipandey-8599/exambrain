@@ -14,9 +14,11 @@ import Report from './pages/Report'
 import History from './pages/History'
 import Auth from './pages/Auth'
 import ReviewSection from './components/ReviewSection'
-import { useTheme } from './hooks/useTheme'
 import { useStreak } from './hooks/useStreak'
 import { useAuth } from './hooks/useAuth'
+
+// Force light theme always — remove dark mode
+document.documentElement.setAttribute('data-theme', 'light')
 
 export default function App() {
   const [view, setView] = useState('landing')
@@ -26,23 +28,20 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [unseenReplies, setUnseenReplies] = useState(0)
 
-  const { theme, toggle } = useTheme()
   const { streak, newBadge, recordStudy } = useStreak()
   const { user, loading, signOut } = useAuth()
 
-  // Auto-enter app if already visited
   useEffect(() => {
     if (localStorage.getItem('exambrain-visited')) setView('app')
   }, [])
 
-  // Mandatory sign-in: show auth wall when entering app if not signed in
+  // Mandatory sign-in wall
   useEffect(() => {
     if (view === 'app' && !loading && !user) {
       setShowAuth(true)
     }
   }, [view, loading, user])
 
-  // When user signs in
   useEffect(() => {
     if (user) {
       setShowAuth(false)
@@ -54,10 +53,6 @@ export default function App() {
     localStorage.setItem('exambrain-visited', '1')
     setView('app')
     if (!localStorage.getItem('exambrain-onboarded')) setShowOnboarding(true)
-  }
-
-  async function handleRecordStudy(sessions, score) {
-    return recordStudy(sessions, score)
   }
 
   if (view === 'landing') {
@@ -73,14 +68,12 @@ export default function App() {
     <div style={{ maxWidth: 540, margin: '0 auto', position: 'relative', minHeight: '100dvh', background: 'var(--bg)' }}>
       <ToastProvider />
 
-      {/* Mandatory auth wall */}
+      {/* Auth wall */}
       {showAuth && <Auth onBack={() => {}} mandatory={true} />}
 
       {user && (
         <>
           <Header
-            theme={theme}
-            onToggleTheme={toggle}
             streak={streak}
             onGoHome={() => setView('landing')}
             user={user}
@@ -90,16 +83,14 @@ export default function App() {
           <InstallBanner />
           <BadgeToast badge={newBadge} />
           {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
-          {showSyncBanner && (
-            <SyncBanner user={user} onMigrate={() => setShowSyncBanner(false)} />
-          )}
+          {showSyncBanner && <SyncBanner user={user} onMigrate={() => setShowSyncBanner(false)} />}
 
           <main>
             <div key={screen} className="tab-page">
               {screen === 'home'       && <Home setScreen={s => setScreen(s)} user={user} />}
               {screen === 'quiz'       && <Quiz setScreen={s => setScreen(s)} />}
               {screen === 'flashcards' && <Flashcards setScreen={s => setScreen(s)} />}
-              {screen === 'report'     && <Report setScreen={s => setScreen(s)} onRecordStudy={handleRecordStudy} user={user} />}
+              {screen === 'report'     && <Report setScreen={s => setScreen(s)} onRecordStudy={recordStudy} user={user} />}
               {screen === 'history'    && <History setScreen={s => setScreen(s)} user={user} />}
               {screen === 'reviews'    && <ReviewSection user={user} onUnseenChange={setUnseenReplies} />}
             </div>

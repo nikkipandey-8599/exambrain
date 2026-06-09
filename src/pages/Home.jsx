@@ -154,9 +154,9 @@ export default function Home({ setScreen, user }) {
       {!examContent && (
         <div className="stagger" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, borderBottom: '1px solid var(--border)' }}>
           {[
-            { label: '10 MCQs', sub: 'Easy → Hard' },
-            { label: '5 Answers', sub: 'AI-graded' },
-            { label: '12 Cards', sub: '3D flip' },
+            { label: '20 MCQs', sub: 'Easy → Hard' },
+            { label: '7 Answers', sub: 'AI-graded' },
+            { label: '20 Cards', sub: '3D flip' },
           ].map((s, i) => (
             <div key={s.label} className="animate-slideUp" style={{
               padding: '0.9rem 0.5rem', textAlign: 'center',

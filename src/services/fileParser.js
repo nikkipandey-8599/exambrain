@@ -13,13 +13,13 @@ export const SUPPORTED_TYPES = {
   'webp': { label: 'Image',    emoji: '🖼️' },
 }
 
-export const MAX_FILE_SIZE_MB = 25
+export const MAX_FILE_SIZE_MB = 50  // increased from 25MB
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return }
     const s = document.createElement('script')
-    s.src = src
+    s.src = src; s.async = true
     s.onload = resolve
     s.onerror = () => reject(new Error(`Failed to load ${src}`))
     document.head.appendChild(s)
@@ -63,7 +63,11 @@ function parseText(file) {
 
 async function parseRTF(file) {
   const raw = await parseText(file)
-  return raw.replace(/\{[^{}]*\}/g, '').replace(/\\[a-z]+\d* ?/g, '').replace(/[{}\\]/g, '').trim()
+  return raw
+    .replace(/\{[^{}]*\}/g, '')
+    .replace(/\\[a-z]+\d* ?/g, '')
+    .replace(/[{}\\]/g, '')
+    .trim()
 }
 
 async function parseCSV(file) {
@@ -86,53 +90,35 @@ async function parseJSON(file) {
   } catch { return raw }
 }
 
-// ── Improved OCR with Groq Vision ────────────────────
 async function parseImageWithGroq(file) {
-  // Convert image to base64
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = e => resolve(e.target.result.split(',')[1])
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-
   const mimeType = file.type || 'image/jpeg'
-
-  // Use Groq vision model to extract text
-  const response = await fetch('/api/ocr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ base64, mimeType })
-  })
-
-  if (!response.ok) {
-    // Fallback to Tesseract if Groq OCR fails
+  try {
+    const response = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64, mimeType })
+    })
+    if (!response.ok) throw new Error('OCR API failed')
+    const data = await response.json()
+    if (data.text && data.text.trim().length > 10) return data.text
+    throw new Error('No text extracted')
+  } catch {
     return parseImageWithTesseract(file)
   }
-
-  const data = await response.json()
-  return data.text || ''
 }
 
 async function parseImageWithTesseract(file) {
-  // Load Tesseract with correct version and worker path
   if (!window.Tesseract) {
     await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js')
   }
-
-  return new Promise((resolve, reject) => {
-    const worker = window.Tesseract.createWorker({
-      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-    })
-
-    window.Tesseract.recognize(file, 'eng', {
-      logger: () => {} // suppress logs
-    }).then(({ data: { text } }) => {
-      resolve(text.trim())
-    }).catch(reject)
-  })
+  const { data: { text } } = await window.Tesseract.recognize(file, 'eng', { logger: () => {} })
+  return text.trim()
 }
 
 export async function parseFile(file) {
@@ -140,14 +126,13 @@ export async function parseFile(file) {
   const sizeMB = file.size / (1024 * 1024)
 
   if (!SUPPORTED_TYPES[ext]) {
-    throw new Error(`File type .${ext} not supported. Try PDF, DOCX, TXT, MD, RTF, CSV, JSON, or an image.`)
+    throw new Error(`.${ext} is not supported. Try PDF, DOCX, TXT, MD, RTF, CSV, JSON, or an image.`)
   }
   if (sizeMB > MAX_FILE_SIZE_MB) {
     throw new Error(`File is ${sizeMB.toFixed(1)}MB — max is ${MAX_FILE_SIZE_MB}MB.`)
   }
 
   let text = ''
-
   switch (ext) {
     case 'pdf':  text = await parsePDF(file); break
     case 'docx':
@@ -162,9 +147,8 @@ export async function parseFile(file) {
     default:     text = await parseText(file)
   }
 
-  if (!text || text.trim().length < 30) {
-    throw new Error('Could not extract enough text. Make sure the image has clear, readable text. Try copy-pasting instead.')
+  if (!text || text.trim().length < 20) {
+    throw new Error('Could not extract enough text. Try copy-pasting the content instead.')
   }
-
   return text.trim()
 }

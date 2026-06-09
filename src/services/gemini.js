@@ -3,44 +3,46 @@ import { gradeOffline } from '../utils/helpers'
 const API_URL = '/api/generate'
 const MODEL = 'llama-3.3-70b-versatile'
 
-async function callGroq(prompt) {
+async function callGroq(prompt, maxTokens = 4000) {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7
+      temperature: 0.4,
+      max_tokens: maxTokens
     })
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error?.message || 'Groq API error')
+  if (!res.ok) throw new Error(data.error?.message || 'API error')
   return data.choices[0].message.content
 }
 
 export async function generateExamContent(notes) {
-  const prompt = `You are an expert exam preparation AI. Analyze the following student notes and generate comprehensive exam content.
+  const prompt = `You are an expert exam preparation AI. Analyze the following student notes carefully and generate comprehensive exam content.
+
 Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this exact structure:
 {
-  "topic": "Subject name extracted from notes (2-5 words)",
+  "topic": "Subject name extracted from notes (2-6 words)",
   "summary": "2-3 sentence overview of the key concepts covered",
   "quiz": [
     {
       "id": "q1",
-      "question": "Question text here?",
+      "question": "Clear, specific question based directly on the notes?",
       "options": ["A. First option", "B. Second option", "C. Third option", "D. Fourth option"],
       "answer": "A. First option",
-      "explanation": "Why this answer is correct",
+      "explanation": "Detailed explanation of why this answer is correct and why others are wrong",
       "difficulty": "easy",
-      "subtopic": "Specific subtopic name"
+      "subtopic": "Specific subtopic name from the notes"
     }
   ],
   "shortAnswer": [
     {
       "id": "sa1",
-      "question": "Short answer question?",
-      "modelAnswer": "The ideal complete answer",
-      "keyPoints": ["Key point 1", "Key point 2", "Key point 3"],
+      "question": "Question requiring a detailed written answer?",
+      "modelAnswer": "The complete ideal answer with all key points included",
+      "keyPoints": ["Specific key point 1 that MUST be mentioned", "Specific key point 2", "Specific key point 3"],
       "difficulty": "medium",
       "subtopic": "Specific subtopic name"
     }
@@ -48,22 +50,29 @@ Return ONLY valid JSON with no markdown, no code blocks, no extra text. Use this
   "flashcards": [
     {
       "id": "fc1",
-      "front": "Term or concept",
-      "back": "Definition or explanation",
+      "front": "Term, concept, or question",
+      "back": "Clear definition or answer",
       "subtopic": "Specific subtopic name"
     }
   ]
 }
+
 Rules:
-- Generate EXACTLY 10 MCQs: 4 easy, 4 medium, 2 hard
-- Generate EXACTLY 5 short answer questions
-- Generate EXACTLY 12 flashcards
+- Generate EXACTLY 20 MCQs: 6 easy, 8 medium, 6 hard
+- Generate EXACTLY 7 short answer questions
+- Generate EXACTLY 20 flashcards
 - difficulty must be exactly "easy", "medium", or "hard"
+- All questions MUST be directly based on the provided notes — do not add external knowledge
+- MCQ options must be plausible and clearly distinct
+- The correct answer in "answer" field must EXACTLY match one of the options strings
+- Short answer keyPoints must be SPECIFIC terms/facts from the notes, not vague phrases
+- Each keyPoint should be a concrete, verifiable fact (e.g. "Prokaryotes have no membrane-bound nucleus" not "differences exist")
+
 Student Notes:
 ${notes}`
 
-  const text = await callGroq(prompt)
-  const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
+  const text = await callGroq(prompt, 6000)
+  const clean = text.replace(/```json|```/g, '').trim()
   let parsed
   try {
     parsed = JSON.parse(clean)
@@ -80,21 +89,57 @@ ${notes}`
 
 export async function gradeShortAnswer(question, modelAnswer, keyPoints, userAnswer) {
   if (!navigator.onLine) return gradeOffline(userAnswer, modelAnswer, keyPoints)
-  const prompt = `Grade this student answer. Return ONLY valid JSON, no markdown.
+
+  const trimmedAnswer = userAnswer?.trim() || ''
+
+  // Reject clearly invalid answers immediately
+  if (trimmedAnswer.length < 10) {
+    return {
+      score: 0,
+      isCorrect: false,
+      feedback: 'Answer is too short. Please provide a detailed response.',
+      missedPoints: keyPoints
+    }
+  }
+
+  const prompt = `You are a strict but fair exam grader. Grade the student's answer accurately and honestly.
+
 Question: ${question}
+
 Model Answer: ${modelAnswer}
-Key Points: ${keyPoints.join(', ')}
-Student Answer: ${userAnswer}
+
+Required Key Points (student MUST mention these specific concepts):
+${keyPoints.map((kp, i) => `${i + 1}. ${kp}`).join('\n')}
+
+Student's Answer: "${trimmedAnswer}"
+
+Grading Rules:
+- Score 0-100 based on how many key points the student correctly addressed
+- Score 0-20: Answer is wrong, irrelevant, or too vague
+- Score 21-49: Mentions some concepts but misses most key points
+- Score 50-69: Covers about half the key points adequately
+- Score 70-84: Covers most key points with reasonable accuracy
+- Score 85-100: Covers all or nearly all key points accurately
+- isCorrect = true ONLY if score >= 70
+- Do NOT give partial credit for answers that are clearly random, nonsensical, or off-topic
+- Be STRICT: vague or generic answers should score low
+- Be FAIR: reward genuinely correct explanations even if worded differently from model answer
+
+Return ONLY valid JSON, no markdown:
 {
   "score": <number 0-100>,
-  "isCorrect": <true if score >= 70>,
-  "feedback": "One sentence of specific feedback",
-  "missedPoints": ["key point they missed"]
+  "isCorrect": <true if score >= 70, false otherwise>,
+  "feedback": "One specific sentence explaining what was right or wrong about this answer",
+  "missedPoints": ["exact key point they missed or got wrong"]
 }`
+
   try {
-    const text = await callGroq(prompt)
-    const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim()
-    return JSON.parse(clean)
+    const text = await callGroq(prompt, 800)
+    const clean = text.replace(/```json|```/g, '').trim()
+    const result = JSON.parse(clean)
+    // Enforce the isCorrect rule strictly
+    result.isCorrect = result.score >= 70
+    return result
   } catch {
     return gradeOffline(userAnswer, modelAnswer, keyPoints)
   }

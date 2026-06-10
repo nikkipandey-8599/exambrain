@@ -13,7 +13,7 @@ export const SUPPORTED_TYPES = {
   'webp': { label: 'Image',    emoji: '🖼️' },
 }
 
-export const MAX_FILE_SIZE_MB = 50  // increased from 25MB
+export const MAX_FILE_SIZE_MB = 50
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {

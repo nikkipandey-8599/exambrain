@@ -29,74 +29,62 @@ export function getTopicAccuracy(answers) {
     .sort((a, b) => a.pct - b.pct)
 }
 
+// ── Shuffle array (required by examStore) ─────────────
+export function shuffleArray(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 // ── Strict offline grader ─────────────────────────────
 export function gradeOffline(userAnswer, modelAnswer, keyPoints) {
   const answer = (userAnswer || '').toLowerCase().trim()
 
-  // Immediately fail very short answers
   if (answer.length < 15) {
     return {
-      score: 0,
-      isCorrect: false,
-      feedback: 'Answer is too short to be graded. Please write a complete response.',
+      score: 0, isCorrect: false,
+      feedback: 'Answer is too short. Please write a complete response.',
       missedPoints: keyPoints
     }
   }
 
-  // Check for clearly random/nonsensical input (repeated chars, gibberish)
   const words = answer.split(/\s+/).filter(w => w.length > 1)
   const uniqueWords = new Set(words)
   if (words.length > 3 && uniqueWords.size / words.length < 0.3) {
     return {
-      score: 0,
-      isCorrect: false,
+      score: 0, isCorrect: false,
       feedback: 'Answer appears to be random text. Please provide a genuine response.',
       missedPoints: keyPoints
     }
   }
 
-  // Count matched key points — require meaningful match
   let matched = 0
   const missed = []
   keyPoints.forEach(kp => {
-    const kpWords = kp.toLowerCase()
-      .split(/\s+/)
-      .filter(w => w.length > 3) // only significant words
-    // Require at least 60% of key point words to appear in answer
+    const kpWords = kp.toLowerCase().split(/\s+/).filter(w => w.length > 3)
     const matchCount = kpWords.filter(w => answer.includes(w)).length
     const matchRatio = kpWords.length > 0 ? matchCount / kpWords.length : 0
-    if (matchRatio >= 0.6) {
-      matched++
-    } else {
-      missed.push(kp)
-    }
+    if (matchRatio >= 0.6) matched++
+    else missed.push(kp)
   })
 
   const ratio = keyPoints.length > 0 ? matched / keyPoints.length : 0
-
-  // Also check against model answer for general relevance
-  const modelWords = (modelAnswer || '').toLowerCase()
-    .split(/\s+/)
-    .filter(w => w.length > 4)
-  const relevantModelWords = [...new Set(modelWords)]
-  const modelMatchCount = relevantModelWords.filter(w => answer.includes(w)).length
-  const modelMatchRatio = relevantModelWords.length > 0 ? modelMatchCount / relevantModelWords.length : 0
-
-  // Combine both scores
+  const modelWords = [...new Set((modelAnswer || '').toLowerCase().split(/\s+/).filter(w => w.length > 4))]
+  const modelMatchRatio = modelWords.length > 0 ? modelWords.filter(w => answer.includes(w)).length / modelWords.length : 0
   const combinedRatio = (ratio * 0.7) + (modelMatchRatio * 0.3)
-
   let score = Math.round(combinedRatio * 100)
-  // Apply minimum threshold — must get at least 20% match for any credit
   if (combinedRatio < 0.2) score = Math.min(score, 15)
 
   const isCorrect = score >= 70
-
   let feedback = ''
-  if (score >= 85) feedback = 'Excellent answer — covers the key points well.'
-  else if (score >= 70) feedback = 'Good answer — addresses most of the important points.'
-  else if (score >= 50) feedback = 'Partial credit — you mentioned some points but missed others.'
-  else if (score >= 20) feedback = 'Answer is too vague or incomplete. Review the key concepts.'
-  else feedback = 'Answer does not address the question. Please study this topic again.'
+  if (score >= 85) feedback = 'Excellent — covers the key points well.'
+  else if (score >= 70) feedback = 'Good — addresses most important points.'
+  else if (score >= 50) feedback = 'Partial credit — some points missed.'
+  else if (score >= 20) feedback = 'Too vague or incomplete. Review the key concepts.'
+  else feedback = 'Does not address the question. Study this topic again.'
 
   return { score, isCorrect, feedback, missedPoints: missed }
 }

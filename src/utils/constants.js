@@ -1,6 +1,6 @@
-export const MAX_CHARS = 30000      // increased from 15,000
+export const MAX_CHARS = 30000
 export const MIN_CHARS = 50
-export const WARN_THRESHOLD = 0.85  // warn at 85%
+export const WARN_THRESHOLD = 0.85
 
 export const SAMPLE_NOTES = `Cell Biology — Lecture Notes
 
@@ -47,6 +47,6 @@ Cell Division:
 - Meiosis: Two divisions → 4 haploid gametes; increases genetic diversity
 - Interphase: G1 (growth), S (DNA synthesis), G2 (prep for division)
 
-Key Differences — Plant vs Animal Cells:
+Plant vs Animal Cells:
 Plant cells have: cell wall, chloroplasts, large central vacuole, plasmodesmata
-Animal cells have: centrioles, lysosomes, smaller/no vacuole`
+Animal cells have: centrioles, lysosomes, smaller or no vacuole`

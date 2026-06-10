@@ -1,3 +1,5 @@
+export const DB_NAME = 'exambrain-db'
+export const DB_VERSION = 1
 export const MAX_CHARS = 30000
 export const MIN_CHARS = 50
 export const WARN_THRESHOLD = 0.85

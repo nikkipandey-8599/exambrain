@@ -5,23 +5,33 @@ export const MAX_CHARS = 30000
 export const MIN_CHARS = 50
 export const WARN_THRESHOLD = 0.85
 
+// 50 MB
+export const MAX_FILE_SIZE = 50 * 1024 * 1024
+
 export const DIFFICULTY = {
   easy: {
     label: 'Easy',
     color: '#22c55e',
-    bg: 'rgba(34,197,94,0.15)'
+    bg: 'rgba(34,197,94,0.12)'
   },
   medium: {
     label: 'Medium',
     color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.15)'
+    bg: 'rgba(245,158,11,0.12)'
   },
   hard: {
     label: 'Hard',
     color: '#ef4444',
-    bg: 'rgba(239,68,68,0.15)'
+    bg: 'rgba(239,68,68,0.12)'
   }
 }
+
+export const SCORE_LABELS = [
+  { min: 90, label: 'Excellent!', emoji: '🏆', color: '#22c55e' },
+  { min: 70, label: 'Good Job', emoji: '👍', color: '#4f6ef7' },
+  { min: 50, label: 'Keep Studying', emoji: '📚', color: '#f59e0b' },
+  { min: 0, label: 'Needs Work', emoji: '💪', color: '#ef4444' }
+]
 
 export const SAMPLE_NOTES = `Cell Biology — Lecture Notes
 

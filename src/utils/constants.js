@@ -3,8 +3,24 @@ export const DB_VERSION = 1
 export const MAX_CHARS = 30000
 export const MIN_CHARS = 50
 export const WARN_THRESHOLD = 0.85
-
 export const SAMPLE_NOTES = `Cell Biology — Lecture Notes
+export const DIFFICULTY = {
+  easy: {
+    label: 'Easy',
+    color: '#22c55e',
+    bg: 'rgba(34,197,94,0.15)'
+  },
+  medium: {
+    label: 'Medium',
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.15)'
+  },
+  hard: {
+    label: 'Hard',
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.15)'
+  }
+}
 
 Cell Theory:
 All living organisms are made of cells. The cell is the basic structural and functional unit of life. All cells come from pre-existing cells (Virchow, 1855).

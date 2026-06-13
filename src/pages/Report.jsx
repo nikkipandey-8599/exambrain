@@ -1,3 +1,4 @@
+import { trackReportDownloaded, trackReportViewed } from '../utils/analytics'
 import { useState, useEffect, useRef } from 'react'
 import { BookOpen, CreditCard, Upload, AlertTriangle, Download, Share2 } from 'lucide-react'
 import useExamStore from '../store/examStore'

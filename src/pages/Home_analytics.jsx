@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Upload, X, ChevronDown, ChevronUp, Zap, BookOpen } from 'lucide-react'
 import useExamStore from '../store/examStore'
 import { generateExamContent } from '../services/gemini'
@@ -9,6 +9,13 @@ import { showToast } from '../components/Toast'
 import NotesEditor from '../components/NotesEditor'
 import SubjectLibrary from './SubjectLibrary'
 import { parseFile, SUPPORTED_TYPES, MAX_FILE_SIZE_MB } from '../services/fileParser'
+import {
+  trackNotesSubmitted,
+  trackGenerationComplete,
+  trackFileUploaded,
+  trackSubjectLibraryOpened,
+  trackSubjectLoaded,
+} from '../utils/analytics'
 
 const STAGES = [
   { label: 'Reading your notes…',       pct: 12 },
@@ -29,6 +36,7 @@ export default function Home({ setScreen, user }) {
   const [dragOver, setDragOver] = useState(false)
   const [parsing, setParsing] = useState(false)
   const fileRef = useRef()
+  const generateTrackedRef = useRef(false) // prevent double-fire
 
   const charCount = notes.length
   const nearLimit = charCount >= MAX_CHARS * WARN_THRESHOLD
@@ -40,11 +48,14 @@ export default function Home({ setScreen, user }) {
     setGenerateError(null)
     setParsing(true)
     const ext = file.name.split('.').pop().toLowerCase()
+    const sizeMB = file.size / (1024 * 1024)
     const isImage = ['png','jpg','jpeg','webp'].includes(ext)
     showToast.info(isImage ? 'Reading image with OCR…' : `Parsing ${file.name}…`)
     try {
       const text = await parseFile(file)
       setNotes(text.slice(0, MAX_CHARS))
+      trackFileUploaded(ext, sizeMB)          // track file upload
+      trackNotesSubmitted(text.length, 'file') // track notes submitted via file
       showToast.success(`Loaded ${file.name}${text.length > MAX_CHARS ? ' (truncated)' : ''}`)
     } catch (e) {
       showToast.error(e.message || 'Could not read file')
@@ -54,6 +65,9 @@ export default function Home({ setScreen, user }) {
 
   async function handleGenerate() {
     setGenerateError(null)
+    generateTrackedRef.current = false
+    trackNotesSubmitted(notes.length, 'generate') // notes submitted for generation
+
     let i = 0
     const iv = setInterval(() => {
       if (i < STAGES.length) { setStageLabel(STAGES[i].label); setStagePct(STAGES[i].pct); i++ }
@@ -68,6 +82,13 @@ export default function Home({ setScreen, user }) {
       await saveNote(sid, notes)
       setExamContent(content)
       setSessionId(sid)
+
+      // Track generation events — once per generation
+      if (!generateTrackedRef.current) {
+        generateTrackedRef.current = true
+        trackGenerationComplete(content.topic)
+      }
+
       if (user) {
         cloudSaveSession(user.id, sid, {
           topic: content.topic, summary: content.summary,
@@ -89,23 +110,22 @@ export default function Home({ setScreen, user }) {
 
       {showLibrary && (
         <SubjectLibrary
-          onLoad={(n) => { setNotes(n); setGenerateError(null) }}
+          onLoad={(n, topic, subject) => {
+            setNotes(n)
+            setGenerateError(null)
+            trackSubjectLoaded(subject || 'Library', topic || 'Unknown')
+            trackNotesSubmitted(n.length, 'library')
+          }}
           onClose={() => setShowLibrary(false)}
         />
       )}
 
-      {/* ── ACTIVE SESSION ── */}
+      {/* Active session */}
       {examContent && (
-        <div className="animate-slideDown" style={{
-          margin: '1rem 1rem 0', padding: '1rem',
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 14, borderLeft: '3px solid var(--brand-500)'
-        }}>
+        <div className="animate-slideDown" style={{ margin: '1rem 1rem 0', padding: '1rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, borderLeft: '3px solid var(--brand-500)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
-              <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--brand-500)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'system-ui', marginBottom: 3 }}>
-                Current Session
-              </p>
+              <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--brand-500)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'system-ui', marginBottom: 3 }}>Current Session</p>
               <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif' }}>{examContent.topic}</p>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -116,11 +136,9 @@ export default function Home({ setScreen, user }) {
           <div style={{ display: 'flex', gap: 8 }}>
             {[['Quiz', 'quiz'], ['Cards', 'flashcards'], ['Report', 'report']].map(([l, s]) => (
               <button key={s} onClick={() => setScreen(s)} style={{
-                flex: 1, background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
+                flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                 color: 'var(--text-secondary)', borderRadius: 8, padding: '0.45rem',
-                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.18s', fontFamily: 'system-ui'
+                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.18s', fontFamily: 'system-ui'
               }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-400)'; e.currentTarget.style.color = 'var(--brand-500)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
@@ -130,27 +148,19 @@ export default function Home({ setScreen, user }) {
         </div>
       )}
 
-      {/* ── HERO STRIP (no vanta — just styled) ── */}
+      {/* Hero strip */}
       {!examContent && (
-        <div style={{
-          background: 'var(--bg-card)',
-          borderBottom: '1px solid var(--border)',
-          padding: '2rem 1.25rem 1.5rem',
-          position: 'relative', overflow: 'hidden'
-        }}>
-          {/* Decorative circles */}
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '2rem 1.25rem 1.5rem', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(146,64,14,0.06)', pointerEvents: 'none' }} />
           <div style={{ position: 'absolute', bottom: -20, right: 40, width: 80, height: 80, borderRadius: '50%', background: 'rgba(146,64,14,0.05)', pointerEvents: 'none' }} />
-          <h1 style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6, lineHeight: 1.2, position: 'relative' }}>
-            Study Smarter.
-          </h1>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif', marginBottom: 6, lineHeight: 1.2, position: 'relative' }}>Study Smarter.</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6, maxWidth: 300, fontFamily: 'system-ui', position: 'relative' }}>
             Paste your notes and get a complete exam toolkit — quizzes, flashcards, score report.
           </p>
         </div>
       )}
 
-      {/* ── STATS ROW ── */}
+      {/* Stats row */}
       {!examContent && (
         <div className="stagger" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, borderBottom: '1px solid var(--border)' }}>
           {[
@@ -158,11 +168,7 @@ export default function Home({ setScreen, user }) {
             { label: '7 Answers', sub: 'AI-graded' },
             { label: '20 Cards', sub: '3D flip' },
           ].map((s, i) => (
-            <div key={s.label} className="animate-slideUp" style={{
-              padding: '0.9rem 0.5rem', textAlign: 'center',
-              borderRight: i < 2 ? '1px solid var(--border)' : 'none',
-              background: 'var(--bg-card)'
-            }}>
+            <div key={s.label} className="animate-slideUp" style={{ padding: '0.9rem 0.5rem', textAlign: 'center', borderRight: i < 2 ? '1px solid var(--border)' : 'none', background: 'var(--bg-card)' }}>
               <p style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Georgia, serif' }}>{s.label}</p>
               <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2, fontFamily: 'system-ui' }}>{s.sub}</p>
             </div>
@@ -170,15 +176,13 @@ export default function Home({ setScreen, user }) {
         </div>
       )}
 
-      {/* ── MAIN CONTENT ── */}
       <div style={{ padding: '1.25rem' }}>
 
         {/* Subject Library */}
-        <button onClick={() => setShowLibrary(true)} style={{
+        <button onClick={() => { setShowLibrary(true); trackSubjectLibraryOpened() }} style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0.85rem 1rem', marginBottom: 12,
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s'
+          padding: '0.85rem 1rem', marginBottom: 12, background: 'var(--bg-card)',
+          border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s'
         }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-400)'; e.currentTarget.style.boxShadow = '0 2px 12px var(--brand-glow)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -203,8 +207,7 @@ export default function Home({ setScreen, user }) {
             border: `1.5px dashed ${dragOver ? 'var(--brand-500)' : 'var(--border-strong)'}`,
             borderRadius: 12, padding: '1rem', marginBottom: 10,
             textAlign: 'center', cursor: parsing ? 'not-allowed' : 'pointer',
-            background: dragOver ? 'rgba(146,64,14,0.04)' : 'transparent',
-            transition: 'all 0.2s'
+            background: dragOver ? 'rgba(146,64,14,0.04)' : 'transparent', transition: 'all 0.2s'
           }}
         >
           {parsing ? (
@@ -220,9 +223,7 @@ export default function Home({ setScreen, user }) {
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', marginBottom: 4 }}>
                 {Object.entries(SUPPORTED_TYPES).map(([ext]) => (
-                  <span key={ext} style={{ fontSize: '0.62rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 5px', color: 'var(--text-muted)', fontFamily: 'system-ui' }}>
-                    .{ext}
-                  </span>
+                  <span key={ext} style={{ fontSize: '0.62rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 5px', color: 'var(--text-muted)', fontFamily: 'system-ui' }}>.{ext}</span>
                 ))}
               </div>
               <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'system-ui' }}>Max {MAX_FILE_SIZE_MB}MB · Images use OCR</p>
@@ -272,9 +273,7 @@ export default function Home({ setScreen, user }) {
               <p className="animate-pulseSoft" style={{ fontSize: '0.8rem', color: 'var(--brand-500)', fontFamily: 'system-ui' }}>{stageLabel}</p>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'system-ui' }}>{stagePct}%</p>
             </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${stagePct}%` }} />
-            </div>
+            <div className="progress-bar"><div className="progress-fill" style={{ width: `${stagePct}%` }} /></div>
           </div>
         )}
 
@@ -293,11 +292,7 @@ export default function Home({ setScreen, user }) {
 
         {/* Sample notes */}
         <div style={{ marginTop: '1.25rem', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <button onClick={() => setSampleOpen(o => !o)} style={{
-            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '0.8rem 1rem', background: 'var(--bg-secondary)', border: 'none',
-            color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'system-ui', fontSize: '0.82rem'
-          }}>
+          <button onClick={() => setSampleOpen(o => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1rem', background: 'var(--bg-secondary)', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'system-ui', fontSize: '0.82rem' }}>
             <span>Sample notes — try without uploading</span>
             {sampleOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -306,11 +301,14 @@ export default function Home({ setScreen, user }) {
               <pre style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 140, overflow: 'auto', marginBottom: 10, fontFamily: 'system-ui' }}>
                 {SAMPLE_NOTES.slice(0, 350)}…
               </pre>
-              <button onClick={() => { setNotes(SAMPLE_NOTES); setSampleOpen(false); showToast.success('Sample notes loaded') }} style={{
-                background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)',
-                color: 'var(--text-secondary)', borderRadius: 8, padding: '0.4rem 0.9rem',
-                fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui'
-              }}>Load sample</button>
+              <button onClick={() => {
+                setNotes(SAMPLE_NOTES)
+                setSampleOpen(false)
+                trackNotesSubmitted(SAMPLE_NOTES.length, 'sample')
+                showToast.success('Sample notes loaded')
+              }} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui' }}>
+                Load sample
+              </button>
             </div>
           )}
         </div>

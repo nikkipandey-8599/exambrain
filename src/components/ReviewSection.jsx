@@ -1,3 +1,4 @@
+import { trackReviewSubmitted } from '../utils/analytics'
 import { useState, useEffect, useCallback } from 'react'
 import { Star, Send, ThumbsUp, MessageSquare, ChevronDown, ChevronUp, Shield, Trash2, Reply, Bell, Edit2, X, Check } from 'lucide-react'
 import { supabase } from '../services/supabase'

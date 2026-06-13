@@ -1,3 +1,4 @@
+import { trackQuizStarted, trackQuizCompleted } from '../utils/analytics'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, Check, X, ChevronDown, ChevronUp, Timer } from 'lucide-react'
 import useExamStore from '../store/examStore'

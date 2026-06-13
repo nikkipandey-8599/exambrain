@@ -1,3 +1,4 @@
+import { trackSignIn, trackSignUp } from '../utils/analytics'
 import { useState, useEffect, useRef } from 'react'
 import { signInWithGoogle, signInWithGitHub } from '../services/supabase'
 import { showToast } from '../components/Toast'

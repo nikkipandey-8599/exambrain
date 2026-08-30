@@ -1,11 +1,19 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  // Vercel serverless: try both VITE_ and non-VITE_ env var names
-  const apiKey = process.env.GROQ_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.VITE_GROQ_API_KEY
-
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) {
-    return res.status(500).json({ error: { message: 'API key not configured on server' } })
+    return res.status(500).json({ error: { message: 'GROQ_API_KEY not configured on server' } })
+  }
+
+  // Override deprecated model if frontend sends the old one
+  const body = { ...req.body }
+  if (
+    !body.model ||
+    body.model === 'llama-3.3-70b-versatile' ||
+    body.model === 'llama3-70b-8192'
+  ) {
+    body.model = 'llama-3.1-8b-instant'   // fast, free, stable on Groq
   }
 
   try {
@@ -15,7 +23,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(body)
     })
 
     const data = await response.json()

@@ -20,6 +20,28 @@ export async function signInWithGitHub() {
   })
 }
 
+export async function signInWithDiscord() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'discord',
+    options: { redirectTo: window.location.origin }
+  })
+}
+
+// Email + Password
+export async function signUpWithEmail(email, password) {
+  return supabase.auth.signUp({ email, password })
+}
+
+export async function signInWithEmail(email, password) {
+  return supabase.auth.signInWithPassword({ email, password })
+}
+
+export async function resetPassword(email) {
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`
+  })
+}
+
 export async function signOut() {
   return supabase.auth.signOut()
 }

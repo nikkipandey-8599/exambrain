@@ -1,9 +1,10 @@
 import { gradeOffline } from '../utils/helpers'
 
 const GROQ_URL = '/api/generate'
-const GEMINI_URL = '/api/generate-gemini'   // add this route in your FastAPI backend (see note below)
+const GEMINI_URL = '/api/generate-gemini'
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
+// Model is also overridden server-side in generate.js as a safety net
+const GROQ_MODEL = 'llama-3.1-8b-instant'
 
 // ── Groq call ─────────────────────────────────────────
 async function callGroq(prompt, maxTokens = 4000) {
@@ -19,17 +20,24 @@ async function callGroq(prompt, maxTokens = 4000) {
   })
   const data = await res.json()
   if (!res.ok) {
-    const isRateLimit = res.status === 429 || data?.error?.code === 'rate_limit_exceeded'
-    const err = new Error(data.error?.message || 'Groq API error')
-    err.isRateLimit = isRateLimit
+    const msg = data?.error?.message || 'Groq API error'
+    const err = new Error(msg)
+    // Fallback on: rate limits, deprecated models, unavailable models, server errors
+    err.shouldFallback = (
+      res.status === 429 ||
+      res.status === 503 ||
+      data?.error?.code === 'rate_limit_exceeded' ||
+      msg.includes('does not exist') ||
+      msg.includes('deprecated') ||
+      msg.includes('not have access') ||
+      msg.includes('model_not_found')
+    )
     throw err
   }
   return data.choices[0].message.content
 }
 
-// ── Gemini fallback call ──────────────────────────────
-// This hits a separate FastAPI route you add that calls google.generativeai
-// See note at the bottom of this file for the Python snippet.
+// ── Gemini fallback call ───────────────────────────────
 async function callGemini(prompt, maxTokens = 4000) {
   const res = await fetch(GEMINI_URL, {
     method: 'POST',
@@ -41,16 +49,16 @@ async function callGemini(prompt, maxTokens = 4000) {
   return data.text
 }
 
-// ── Router: try Groq, fall back to Gemini ────────────
+// ── Router: try Groq, fall back to Gemini on any infra error ──
 async function callAI(prompt, maxTokens = 4000) {
   try {
     return await callGroq(prompt, maxTokens)
   } catch (err) {
-    if (err.isRateLimit) {
-      console.warn('[ExamBrain] Groq rate limited — switching to Gemini fallback')
+    if (err.shouldFallback) {
+      console.warn('[ExamBrain] Groq unavailable — switching to Gemini:', err.message)
       return await callGemini(prompt, maxTokens)
     }
-    throw err  // non-rate-limit errors bubble up normally
+    throw err
   }
 }
 
@@ -178,34 +186,3 @@ Return ONLY valid JSON, no markdown:
     return gradeOffline(userAnswer, modelAnswer, keyPoints)
   }
 }
-
-/*
- * ── FastAPI route to add for Gemini fallback ──────────
- *
- * In your main.py / routes, add this endpoint:
- *
- * import google.generativeai as genai
- * import os
- *
- * genai.configure(api_key=os.environ["GEMINI_API_KEY"])
- * gemini_model = genai.GenerativeModel("gemini-1.5-flash")
- *
- * @app.post("/api/generate-gemini")
- * async def generate_gemini(req: Request):
- *     body = await req.json()
- *     prompt = body.get("prompt", "")
- *     max_tokens = body.get("max_tokens", 4000)
- *     try:
- *         response = gemini_model.generate_content(
- *             prompt,
- *             generation_config=genai.types.GenerationConfig(
- *                 max_output_tokens=max_tokens,
- *                 temperature=0.4
- *             )
- *         )
- *         return {"text": response.text}
- *     except Exception as e:
- *         return JSONResponse(status_code=500, content={"error": str(e)})
- *
- * Also add GEMINI_API_KEY to your .env and Vercel environment variables.
- */

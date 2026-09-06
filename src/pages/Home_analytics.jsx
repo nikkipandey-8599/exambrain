@@ -35,6 +35,7 @@ export default function Home({ setScreen, user }) {
   const [showLibrary, setShowLibrary] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [parsing, setParsing] = useState(false)
+  const [justGenerated, setJustGenerated] = useState(false)
   const fileRef = useRef()
   const generateTrackedRef = useRef(false) // prevent double-fire
 
@@ -64,9 +65,10 @@ export default function Home({ setScreen, user }) {
   }
 
   async function handleGenerate() {
-    setGenerateError(null)
-    generateTrackedRef.current = false
-    trackNotesSubmitted(notes.length, 'generate') // notes submitted for generation
+  setGenerateError(null)
+  setJustGenerated(false)
+  generateTrackedRef.current = false
+  trackNotesSubmitted(notes.length, 'generate') // notes submitted for generation
 
     let i = 0
     const iv = setInterval(() => {
@@ -82,6 +84,7 @@ export default function Home({ setScreen, user }) {
       await saveNote(sid, notes)
       setExamContent(content)
       setSessionId(sid)
+      setJustGenerated(true)
 
       // Track generation events — once per generation
       if (!generateTrackedRef.current) {
@@ -289,6 +292,132 @@ export default function Home({ setScreen, user }) {
             </span>
           )}
         </button>
+
+        {/* Exam Prep Ready */}
+{justGenerated && examContent && !isGenerating && (
+  <div
+    className="animate-slideDown"
+    style={{
+      marginTop: '0.85rem',
+      marginBottom: '0.5rem',
+      padding: '1rem',
+      background: 'var(--bg-secondary)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 5,
+      }}
+    >
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          background: 'rgba(34, 197, 94, 0.12)',
+          color: '#16a34a',
+          fontSize: '0.85rem',
+          fontWeight: 700,
+        }}
+      >
+        ✓
+      </span>
+
+      <p
+        style={{
+          fontSize: '0.9rem',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          fontFamily: 'system-ui',
+          margin: 0,
+        }}
+      >
+        Exam Prep Ready
+      </p>
+    </div>
+
+    <p
+      style={{
+        fontSize: '0.75rem',
+        color: 'var(--text-muted)',
+        fontFamily: 'system-ui',
+        margin: '0 0 12px 32px',
+      }}
+    >
+      Your Quiz, Cards and Report have been generated.
+    </p>
+
+    <div
+      style={{
+        display: 'flex',
+        gap: 6,
+        marginLeft: 32,
+      }}
+    >
+      <button
+        onClick={() => setScreen('quiz')}
+        style={{
+          flex: 1,
+          padding: '0.5rem',
+          borderRadius: 8,
+          border: '1px solid var(--brand-500)',
+          background: 'var(--brand-500)',
+          color: '#fff',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'system-ui',
+        }}
+      >
+        Quiz ({examContent.quiz?.length || 0})
+      </button>
+
+      <button
+        onClick={() => setScreen('flashcards')}
+        style={{
+          flex: 1,
+          padding: '0.5rem',
+          borderRadius: 8,
+          border: '1px solid var(--border-strong)',
+          background: 'var(--bg-card)',
+          color: 'var(--text-secondary)',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'system-ui',
+        }}
+      >
+        Cards
+      </button>
+
+      <button
+        onClick={() => setScreen('report')}
+        style={{
+          flex: 1,
+          padding: '0.5rem',
+          borderRadius: 8,
+          border: '1px solid var(--border-strong)',
+          background: 'var(--bg-card)',
+          color: 'var(--text-secondary)',
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'system-ui',
+        }}
+      >
+        Report
+      </button>
+    </div>
+  </div>
+)}
 
         {/* Sample notes */}
         <div style={{ marginTop: '1.25rem', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>

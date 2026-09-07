@@ -95,7 +95,7 @@ export default function App() {
           <main>
             <div key={screen} className="tab-page">
               {screen === 'home'       && <Home setScreen={navigate} user={user} />}
-              {screen === 'quiz'       && <Quiz setScreen={navigate} />}
+              {screen === 'quiz'       && <Quiz setScreen={navigate} user={user} />}
               {screen === 'flashcards' && <Flashcards setScreen={navigate} />}
               {screen === 'report'     && <Report setScreen={navigate} onRecordStudy={recordStudy} user={user} />}
               {screen === 'history'    && <History setScreen={navigate} user={user} />}

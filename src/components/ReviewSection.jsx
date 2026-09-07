@@ -435,7 +435,14 @@ export default function ReviewSection({ user, onUnseenChange }) {
         user_id: user?.id || null,
         fingerprint: user?.id ? null : fingerprint
       })
+      
       if (error) throw error
+
+      localStorage.setItem(
+  `exambrain-review-submitted-${user?.id}`,
+  'true'
+)
+      
       showToast.success('Thanks for your feedback! 🙏')
       setStars(0); setMessage(''); setCategory('general')
       setShowForm(false)

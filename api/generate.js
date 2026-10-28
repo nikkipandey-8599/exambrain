@@ -1,35 +1,43 @@
 // api/generate.js
-// Single AI endpoint for ExamBrain. Tries providers in order and returns the
-// first good answer, so the client never has to know which one responded.
+// ExamBrain AI endpoint
+// Provider priority: OpenRouter -> NVIDIA -> Gemini -> Groq
 //
-// Order (default): OpenRouter -> NVIDIA -> Gemini -> Groq
-// Providers without an API key set are skipped automatically.
-//
-// Request body : { messages, temperature?, max_tokens?, json? }   (json defaults to true)
-// Response body: { choices: [{ message: { role, content } }], provider, model }
-//                (OpenAI-shaped, so existing client code keeps working)
+// Request:  { messages, temperature?, max_tokens?, json? }
+// Response: { choices: [{ message: { role, content } }], provider, model }
 
 import { guard } from './_auth.js'
 
-// Timing: auth + rate-limit checks and every model attempt all count toward the
-// total budget, which must stay safely under maxDuration (60s in vercel.json).
-const ATTEMPT_TIMEOUT_MS = Number(process.env.AI_ATTEMPT_TIMEOUT_MS || 30000) // max time for one model attempt
-const TOTAL_BUDGET_MS = 55000 // hard stop for the whole request, measured from the start of the handler
-const MAX_PROMPT_CHARS = 60000 // notes are capped at 30,000 chars in the app; this blocks oversized abuse
+// Keep individual attempts short enough to allow fallback providers to run.
+// Vercel's function duration must also be configured appropriately.
+const ATTEMPT_TIMEOUT_MS = Number(
+  process.env.AI_ATTEMPT_TIMEOUT_MS || 12000
+)
+
+const TOTAL_BUDGET_MS = 55000
+const MAX_PROMPT_CHARS = 60000
 
 const csv = (value, fallback) =>
-  (value || fallback).split(',').map(s => s.trim()).filter(Boolean)
+  (value || fallback)
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
 
-// ── Provider definitions ───────────────────────────────
+// ─────────────────────────────────────────────────────
+// PROVIDERS
+// ─────────────────────────────────────────────────────
+
 const PROVIDERS = {
+  // 1. OpenRouter — primary provider
   openrouter: {
     key: () => process.env.OPENROUTER_API_KEY,
+
     models: () =>
       csv(
         process.env.OPENROUTER_MODELS,
-        'meta-llama/llama-3.3-70b-instruct:free'
+        'openrouter/free'
       ),
-    run: (ctx) =>
+
+    run: ctx =>
       openAICompatible({
         ...ctx,
         url: 'https://openrouter.ai/api/v1/chat/completions',
@@ -40,10 +48,17 @@ const PROVIDERS = {
       })
   },
 
+  // 2. NVIDIA — second provider
   nvidia: {
     key: () => process.env.NVIDIA_API_KEY,
-    models: () => csv(process.env.NVIDIA_MODELS, 'meta/llama-3.3-70b-instruct'),
-    run: (ctx) =>
+
+    models: () =>
+      csv(
+        process.env.NVIDIA_MODELS,
+        'meta/llama-3.3-70b-instruct'
+      ),
+
+    run: ctx =>
       openAICompatible({
         ...ctx,
         url: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -51,23 +66,44 @@ const PROVIDERS = {
       })
   },
 
+  // 3. Gemini — third provider
   gemini: {
     key: () => process.env.GEMINI_API_KEY,
-    models: () => csv(process.env.GEMINI_MODEL, 'gemini-3.6-flash'),
-    run: (ctx) => geminiNative(ctx)
+
+    models: () =>
+      csv(
+        process.env.GEMINI_MODEL,
+        'gemini-3.6-flash'
+      ),
+
+    run: ctx => geminiNative(ctx)
   },
 
+  // 4. Groq — last fallback
   groq: {
     key: () => process.env.GROQ_API_KEY,
-    models: () => csv(process.env.GROQ_MODEL, 'llama-3.3-70b-versatile'),
-    // Groq's free tier has a small tokens-per-minute cap. A request bigger than the
-    // cap can never succeed, so skip Groq for big jobs and keep it for small ones (grading).
-    canHandle: ({ messages, max_tokens }) => {
-      const chars = messages.reduce((n, m) => n + String(m.content || '').length, 0)
-      const estimatedTokens = Math.ceil(chars / 4) + max_tokens
-      return estimatedTokens <= Number(process.env.GROQ_TPM_LIMIT || 6000)
+
+    models: () =>
+      csv(
+        process.env.GROQ_MODEL,
+        'llama-3.3-70b-versatile'
+      ),
+
+    // Avoid sending very large prompts to Groq's free tier.
+    // Requests outside this limit can still use the first three providers.
+    canHandle: ({ messages }) => {
+      const chars = messages.reduce(
+        (total, message) =>
+          total + String(message.content || '').length,
+        0
+      )
+
+      const estimatedInputTokens = Math.ceil(chars / 4)
+
+      return estimatedInputTokens <= 3500
     },
-    run: (ctx) =>
+
+    run: ctx =>
       openAICompatible({
         ...ctx,
         url: 'https://api.groq.com/openai/v1/chat/completions',
@@ -76,10 +112,23 @@ const PROVIDERS = {
   }
 }
 
-// ── Runners ────────────────────────────────────────────
-// OpenAI-compatible chat completions (OpenRouter, NVIDIA, Groq)
-async function openAICompatible({ url, headers, key, model, messages, temperature, max_tokens, json, signal }) {
-  const send = (jsonMode) =>
+// ─────────────────────────────────────────────────────
+// OPENAI-COMPATIBLE PROVIDERS
+// OpenRouter, NVIDIA and Groq
+// ─────────────────────────────────────────────────────
+
+async function openAICompatible({
+  url,
+  headers,
+  key,
+  model,
+  messages,
+  temperature,
+  max_tokens,
+  json,
+  signal
+}) {
+  const send = jsonMode =>
     fetch(url, {
       method: 'POST',
       signal,
@@ -93,182 +142,441 @@ async function openAICompatible({ url, headers, key, model, messages, temperatur
         messages,
         temperature,
         max_tokens,
-        ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+        ...(jsonMode
+          ? {
+              response_format: {
+                type: 'json_object'
+              }
+            }
+          : {})
       })
     })
 
-  let res = await send(json)
-  // Some models reject JSON mode — retry once without it
-  if (json && (res.status === 400 || res.status === 422)) res = await send(false)
+  let response = await send(json)
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status} ${body.slice(0, 160)}`)
+  // Some models do not support JSON response mode.
+  // Retry without JSON mode when the provider rejects that parameter.
+  if (
+    json &&
+    (response.status === 400 || response.status === 422)
+  ) {
+    response = await send(false)
   }
 
-  const data = await res.json()
-  // OpenRouter can return HTTP 200 with an error object inside
-  if (data?.error) throw new Error(data.error.message || 'Provider returned an error')
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(
+      `HTTP ${response.status} ${body.slice(0, 250)}`
+    )
+  }
+
+  const data = await response.json()
+
+  // Some providers return HTTP 200 with an error object.
+  if (data?.error) {
+    throw new Error(
+      data.error.message || 'Provider returned an error'
+    )
+  }
 
   const choice = data?.choices?.[0]
-  return { text: choice?.message?.content || '', finish: choice?.finish_reason }
+
+  return {
+    text: choice?.message?.content || '',
+    finish: choice?.finish_reason
+  }
 }
 
-// Google Gemini native API
-async function geminiNative({ key, model, messages, temperature, max_tokens, json, signal }) {
-  const res = await fetch(
+// ─────────────────────────────────────────────────────
+// GEMINI NATIVE API
+// ─────────────────────────────────────────────────────
+
+async function geminiNative({
+  key,
+  model,
+  messages,
+  temperature,
+  max_tokens,
+  json,
+  signal
+}) {
+  const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
       signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key
+      },
       body: JSON.stringify({
-        contents: messages.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: String(m.content || '') }]
-        })),
+        contents: messages
+          .filter(message => message.role !== 'system')
+          .map(message => ({
+            role:
+              message.role === 'assistant'
+                ? 'model'
+                : 'user',
+            parts: [
+              {
+                text: String(message.content || '')
+              }
+            ]
+          })),
+        ...(messages.some(message => message.role === 'system')
+          ? {
+              systemInstruction: {
+                parts: [
+                  {
+                    text: messages
+                      .filter(message => message.role === 'system')
+                      .map(message => String(message.content || ''))
+                      .join('\n')
+                  }
+                ]
+              }
+            }
+          : {}),
         generationConfig: {
           temperature,
           maxOutputTokens: max_tokens,
-          ...(json ? { responseMimeType: 'application/json' } : {})
+          ...(json
+            ? {
+                responseMimeType: 'application/json'
+              }
+            : {})
         }
       })
     }
   )
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status} ${body.slice(0, 160)}`)
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(
+      `HTTP ${response.status} ${body.slice(0, 250)}`
+    )
   }
 
-  const data = await res.json()
+  const data = await response.json()
   const candidate = data?.candidates?.[0]
+
   return {
-    text: candidate?.content?.parts?.map(p => p.text || '').join('') || '',
-    finish: candidate?.finishReason === 'MAX_TOKENS' ? 'length' : candidate?.finishReason
+    text:
+      candidate?.content?.parts
+        ?.map(part => part.text || '')
+        .join('') || '',
+    finish:
+      candidate?.finishReason === 'MAX_TOKENS'
+        ? 'length'
+        : candidate?.finishReason
   }
 }
 
-// ── Helpers ────────────────────────────────────────────
-// Returns clean JSON text, or null if the model's output isn't valid JSON
+// ─────────────────────────────────────────────────────
+// VALIDATE JSON RESPONSES
+// ─────────────────────────────────────────────────────
+
 function toValidJson(text) {
-  const cleaned = String(text || '').replace(/```json|```/gi, '').trim()
+  const cleaned = String(text || '')
+    .replace(/```json|```/gi, '')
+    .trim()
+
   try {
     JSON.parse(cleaned)
     return cleaned
   } catch {
     const start = cleaned.indexOf('{')
     const end = cleaned.lastIndexOf('}')
+
     if (start !== -1 && end > start) {
-      const slice = cleaned.slice(start, end + 1)
+      const extracted = cleaned.slice(start, end + 1)
+
       try {
-        JSON.parse(slice)
-        return slice
+        JSON.parse(extracted)
+        return extracted
       } catch {
         return null
       }
     }
+
     return null
   }
 }
 
+// ─────────────────────────────────────────────────────
+// BUILD PROVIDER ATTEMPTS IN PRIORITY ORDER
+// ─────────────────────────────────────────────────────
+
 function buildAttempts(request) {
-  const order = csv(process.env.AI_PROVIDER_ORDER, 'openrouter,nvidia,gemini,groq')
+  const order = csv(
+    process.env.AI_PROVIDER_ORDER,
+    'openrouter,nvidia,gemini,groq'
+  )
+
   const attempts = []
+
   for (const name of order) {
     const provider = PROVIDERS[name]
-    if (!provider || !provider.key()) continue
-    if (provider.canHandle && !provider.canHandle(request)) continue
-    for (const model of provider.models()) attempts.push({ name, provider, model })
+
+    if (!provider) {
+      console.warn(
+        '[ExamBrain] Unknown provider in AI_PROVIDER_ORDER:',
+        name
+      )
+      continue
+    }
+
+    if (!provider.key()) {
+      console.log(
+        '[ExamBrain] Skipping provider: missing API key',
+        name
+      )
+      continue
+    }
+
+    if (
+      provider.canHandle &&
+      !provider.canHandle(request)
+    ) {
+      console.log(
+        '[ExamBrain] Skipping provider: request exceeds provider limit',
+        name
+      )
+      continue
+    }
+
+    for (const model of provider.models()) {
+      attempts.push({
+        name,
+        provider,
+        model
+      })
+    }
   }
+
+  console.log(
+    '[ExamBrain] Provider attempt order:',
+    attempts.map(attempt => `${attempt.name}/${attempt.model}`)
+  )
+
   return attempts
 }
 
-// ── Handler ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────
+// API HANDLER
+// ─────────────────────────────────────────────────────
+
 export default async function handler(req, res) {
-  const startedAt = Date.now() // budget starts here, so auth time is counted
+  const startedAt = Date.now()
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: { message: 'Method not allowed' } })
+    return res
+      .status(405)
+      .json({
+        error: {
+          message: 'Method not allowed'
+        }
+      })
   }
 
-  // Must be signed in and within rate limits (sends its own error response)
+  // Authentication and rate-limit checks.
   const caller = await guard(req, res)
-  if (!caller) return
+
+  if (!caller) {
+    return
+  }
 
   const body = req.body || {}
-  const messages = Array.isArray(body.messages) ? body.messages : []
+  const messages = Array.isArray(body.messages)
+    ? body.messages
+    : []
+
   if (!messages.length) {
-    return res.status(400).json({ error: { message: 'messages is required' } })
+    return res
+      .status(400)
+      .json({
+        error: {
+          message: 'messages is required'
+        }
+      })
   }
 
-  const totalChars = messages.reduce((n, m) => n + String(m?.content ?? '').length, 0)
+  const totalChars = messages.reduce(
+    (total, message) =>
+      total + String(message?.content ?? '').length,
+    0
+  )
+
   if (totalChars > MAX_PROMPT_CHARS) {
-    return res.status(413).json({ error: { message: 'Request is too large.' } })
+    return res
+      .status(413)
+      .json({
+        error: {
+          message: 'Request is too large.'
+        }
+      })
   }
 
   const request = {
-    messages: messages.map(m => ({
-      role: m.role === 'assistant' || m.role === 'system' ? m.role : 'user',
-      content: String(m.content ?? '')
+    messages: messages.map(message => ({
+      role:
+        message.role === 'assistant' ||
+        message.role === 'system'
+          ? message.role
+          : 'user',
+      content: String(message.content ?? '')
     })),
-    temperature: Math.min(Math.max(Number(body.temperature ?? 0.3), 0), 1),
-    max_tokens: Math.min(Math.max(parseInt(body.max_tokens, 10) || 4096, 1), 8192),
-    json: body.json !== false // JSON mode is the default; hints send json:false
+
+    temperature: Math.min(
+      Math.max(Number(body.temperature ?? 0.3), 0),
+      1
+    ),
+
+    max_tokens: Math.min(
+      Math.max(parseInt(body.max_tokens, 10) || 4096, 1),
+      8192
+    ),
+
+    json: body.json !== false
   }
 
   const attempts = buildAttempts(request)
+
   if (!attempts.length) {
-    console.error('[ExamBrain] No AI provider configured. Set OPENROUTER_API_KEY and/or NVIDIA_API_KEY in Vercel.')
-    return res.status(500).json({
-      error: { message: 'AI is not set up on the server yet.' }
-    })
+    console.error(
+      '[ExamBrain] No AI provider available. Check API keys and provider settings.'
+    )
+
+    return res
+      .status(500)
+      .json({
+        error: {
+          message: 'AI is not set up on the server yet.'
+        }
+      })
   }
 
   const failures = []
 
   for (const { name, provider, model } of attempts) {
-    const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt)
-    if (remaining < 3000) break
+    const elapsed = Date.now() - startedAt
+    const remaining = TOTAL_BUDGET_MS - elapsed
+
+    if (remaining < 3000) {
+      console.warn(
+        '[ExamBrain] Stopping provider attempts: time budget nearly exhausted.'
+      )
+      break
+    }
 
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), Math.min(ATTEMPT_TIMEOUT_MS, remaining))
+
+    const timeout = Math.min(
+      ATTEMPT_TIMEOUT_MS,
+      remaining - 1000
+    )
+
+    const timer = setTimeout(
+      () => controller.abort(),
+      timeout
+    )
 
     try {
+      console.log(
+        '[ExamBrain] Trying AI provider:',
+        name,
+        model
+      )
+
+      // Groq gets a smaller output allowance to reduce rate-limit pressure.
+      const providerMaxTokens =
+        name === 'groq'
+          ? Math.min(request.max_tokens, 2048)
+          : request.max_tokens
+
       const { text, finish } = await provider.run({
         ...request,
+        max_tokens: providerMaxTokens,
         key: provider.key(),
         model,
         signal: controller.signal
       })
 
-      if (!text.trim()) throw new Error('Empty response')
+      if (!String(text || '').trim()) {
+        throw new Error('Empty response')
+      }
 
       let content = text
+
       if (request.json) {
-        // A cut-off or malformed answer is useless — fall through to the next model
-        const valid = finish === 'length' ? null : toValidJson(text)
-        if (!valid) throw new Error(finish === 'length' ? 'Output truncated' : 'Invalid JSON output')
+        const valid =
+          finish === 'length'
+            ? null
+            : toValidJson(text)
+
+        if (!valid) {
+          throw new Error(
+            finish === 'length'
+              ? 'Output truncated'
+              : 'Invalid JSON output'
+          )
+        }
+
         content = valid
       }
 
-      console.log('[ExamBrain] AI ok:', { provider: name, model, ms: Date.now() - startedAt })
-      return res.status(200).json({
-        choices: [{ message: { role: 'assistant', content } }],
+      console.log('[ExamBrain] AI success:', {
         provider: name,
-        model
+        model,
+        ms: Date.now() - startedAt
       })
-    } catch (e) {
-      const reason = e.name === 'AbortError' ? 'Timed out' : e.message
-      failures.push(`${name}/${model}: ${reason}`)
-      console.warn('[ExamBrain] AI attempt failed:', name, model, reason)
+
+      return res
+        .status(200)
+        .json({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content
+              }
+            }
+          ],
+          provider: name,
+          model
+        })
+    } catch (error) {
+      const reason =
+        error.name === 'AbortError'
+          ? `Timed out after ${timeout}ms`
+          : error.message
+
+      failures.push(
+        `${name}/${model}: ${reason}`
+      )
+
+      console.warn(
+        '[ExamBrain] AI attempt failed:',
+        name,
+        model,
+        reason
+      )
     } finally {
       clearTimeout(timer)
     }
   }
 
-  console.error('[ExamBrain] All AI providers failed:', failures)
-  return res.status(502).json({
-    error: { message: 'AI is busy right now. Please try again in a minute.' }
-  })
+  console.error(
+    '[ExamBrain] All AI providers failed:',
+    failures
+  )
+
+  return res
+    .status(502)
+    .json({
+      error: {
+        message:
+          'AI is busy right now. Please try again in a minute.'
+      }
+    })
 }

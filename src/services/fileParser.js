@@ -1,3 +1,5 @@
+import { authHeaders } from '../utils/authHeader'
+
 export const SUPPORTED_TYPES = {
   'pdf':  { label: 'PDF',      emoji: '📄' },
   'docx': { label: 'Word',     emoji: '📝' },
@@ -101,7 +103,7 @@ async function parseImageWithGroq(file) {
   try {
     const response = await fetch('/api/ocr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ base64, mimeType })
     })
     if (!response.ok) throw new Error('OCR API failed')

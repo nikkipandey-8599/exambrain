@@ -104,7 +104,8 @@ export default function Home({ setScreen, user }) {
       clearInterval(iv); setStagePct(0)
       const msg = e.message?.includes('key') ? 'API key error — check Vercel env vars' : e.message || 'Something went wrong'
       setGenerateError(msg)
-      showToast.error('Generation failed')
+      // 401 / 429 / 503 messages are written for users, so show them directly in the toast
+      showToast.error([401, 429, 503].includes(e.status) ? msg : 'Generation failed')
     } finally { setGenerating(false) }
   }
 

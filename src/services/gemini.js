@@ -1,71 +1,58 @@
 import { gradeOffline } from '../utils/helpers'
+import { authHeaders } from '../utils/authHeader'
 
-const GROQ_URL = '/api/generate'
-const GEMINI_URL = '/api/generate-gemini'
-const GROQ_MODEL = 'llama-3.1-8b-instant'
+const AI_URL = '/api/generate'
 
-// ── Groq call ─────────────────────────────────────────
-async function callGroq(prompt, maxTokens = 8192) {
-  const res = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: maxTokens
-      // response_format is set server-side in api/generate.js
-    })
-  })
-
-  // 404 means the serverless function isn't deployed — go straight to Gemini
-  if (res.status === 404) {
-    const err = new Error('Groq endpoint not found (404)')
-    err.shouldFallback = true
-    throw err
-  }
-
-  const data = await res.json()
-  if (!res.ok) {
-    const msg = data?.error?.message || 'Groq API error'
-    const err = new Error(msg)
-    err.shouldFallback = (
-      res.status === 429 ||
-      res.status === 503 ||
-      msg.includes('does not exist') ||
-      msg.includes('deprecated') ||
-      msg.includes('not have access') ||
-      msg.includes('model_not_found') ||
-      msg.includes('rate_limit')
-    )
-    throw err
-  }
-  return data.choices[0].message.content
+// ── AI call ───────────────────────────────────────────
+// Provider fallback (OpenRouter → NVIDIA → Gemini → Groq) happens server-side
+// in api/generate.js, so the browser only ever makes one request.
+// Errors carry `status` (401 signed out, 429 rate limited, 503/502 AI unavailable, 0 network)
+// and a user-friendly `message` written by the server.
+function aiError(message, status) {
+  const err = new Error(message)
+  err.status = status
+  return err
 }
 
-// ── Gemini fallback call ───────────────────────────────
-async function callGemini(prompt, maxTokens = 8192) {
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, max_tokens: maxTokens })
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Gemini API error')
-  return data.text
-}
-
-// ── Router ─────────────────────────────────────────────
 async function callAI(prompt, maxTokens = 8192) {
+  let res
   try {
-    return await callGroq(prompt, maxTokens)
-  } catch (err) {
-    if (err.shouldFallback) {
-      console.warn('[ExamBrain] Groq unavailable — switching to Gemini:', err.message)
-      return await callGemini(prompt, maxTokens)
-    }
-    throw err
+    res = await fetch(AI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: maxTokens,
+        json: true
+      })
+    })
+  } catch {
+    throw aiError('Could not reach ExamBrain. Check your internet connection and try again.', 0)
   }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    // non-JSON error page (e.g. 404 when the function isn't deployed)
+  }
+
+  if (!res.ok) {
+    const fallbackMessages = {
+      401: 'Please sign in again to use AI features.',
+      429: 'You are sending requests too quickly. Please wait a moment and try again.',
+      503: 'AI is temporarily unavailable. Please try again in a few minutes.'
+    }
+    throw aiError(
+      data?.error?.message || fallbackMessages[res.status] || `AI request failed (${res.status})`,
+      res.status
+    )
+  }
+
+  const content = data?.choices?.[0]?.message?.content
+  if (!content) throw new Error('Empty response from AI')
+  return content
 }
 
 // ── Safe JSON parse — handles both raw JSON and markdown-wrapped ──
@@ -185,7 +172,15 @@ Scoring: 0-20 wrong/vague, 21-49 partial, 50-69 half correct, 70-84 mostly corre
     const result = safeParseJSON(text)
     result.isCorrect = result.score >= 70
     return result
-  } catch {
-    return gradeOffline(userAnswer, modelAnswer, keyPoints)
+  } catch (err) {
+    // Fall back to offline keyword grading, but tell the student why it happened
+    const result = gradeOffline(userAnswer, modelAnswer, keyPoints)
+    const note =
+      err?.status === 401 ? 'Graded offline because your session expired — sign in again for AI grading.'
+      : err?.status === 429 ? 'Graded offline because you reached the AI limit — wait a moment for AI grading.'
+      : err?.status === 503 || err?.status === 502 ? 'Graded offline because AI is busy right now.'
+      : ''
+    if (note) result.feedback = `${result.feedback} (${note})`
+    return result
   }
 }

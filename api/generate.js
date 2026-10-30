@@ -1,20 +1,38 @@
 // api/generate.js
 // ExamBrain AI endpoint
 // Provider priority: OpenRouter -> NVIDIA -> Gemini -> Groq
+// (change the order with the AI_PROVIDER_ORDER environment variable)
 //
 // Request:  { messages, temperature?, max_tokens?, json? }
 // Response: { choices: [{ message: { role, content } }], provider, model }
+//
+// How fallback works:
+//   - A provider that fails (404, 403, 429, bad JSON, ...) is skipped immediately.
+//   - A provider that is merely SLOW is NOT killed. After AI_STAGGER_MS the next
+//     provider is started as well, and whichever returns a valid answer first wins.
+//   - Everything stops at AI_TOTAL_BUDGET_MS, which must stay below the function's
+//     maxDuration in vercel.json.
 
 import { guard } from './_auth.js'
 
-// Keep individual attempts short enough to allow fallback providers to run.
-// Vercel's function duration must also be configured appropriately.
-const ATTEMPT_TIMEOUT_MS = Number(
-  process.env.AI_ATTEMPT_TIMEOUT_MS || 12000
+// Total time for the whole request (login check + all AI attempts), in ms.
+// Default 55s fits the 60s maxDuration. If Fluid Compute is on (Vercel allows up to
+// 300s on Hobby), raise maxDuration in vercel.json and set e.g. AI_TOTAL_BUDGET_MS=110000.
+const TOTAL_BUDGET_MS = Math.min(
+  Number(process.env.AI_TOTAL_BUDGET_MS) || 55000,
+  290000
 )
 
-const TOTAL_BUDGET_MS = 55000
+// How long to wait on one provider before also starting the next one.
+// Big requests (full quiz) are slow, so they wait longer than small ones (hints, grading).
+const STAGGER_MS = Number(process.env.AI_STAGGER_MS) || 25000
+const STAGGER_SMALL_MS = 8000
+
 const MAX_PROMPT_CHARS = 60000
+
+// Reasoning models spend part of max_tokens on "thinking". A tiny limit (e.g. 150 for
+// hints) can leave nothing for the answer, so never go below this. It is only a ceiling.
+const MIN_OUTPUT_TOKENS = 1024
 
 const csv = (value, fallback) =>
   (value || fallback)
@@ -80,18 +98,20 @@ const PROVIDERS = {
   },
 
   // 4. Groq — last fallback
+  // llama-3.3-70b-versatile and llama-3.1-8b-instant were shut down on 2026-08-16.
+  // Groq's recommended replacement is openai/gpt-oss-120b.
   groq: {
     key: () => process.env.GROQ_API_KEY,
 
     models: () =>
       csv(
         process.env.GROQ_MODEL,
-        'llama-3.3-70b-versatile'
+        'openai/gpt-oss-120b'
       ),
 
-    // Avoid sending very large prompts to Groq's free tier.
-    // Requests outside this limit can still use the first three providers.
-    canHandle: ({ messages }) => {
+    // Groq's free tier has a small tokens-per-minute cap, so it only handles small
+    // jobs (grading, hints). A full quiz needs far more output than fits, so it is skipped.
+    canHandle: ({ messages, max_tokens }) => {
       const chars = messages.reduce(
         (total, message) =>
           total + String(message.content || '').length,
@@ -100,14 +120,17 @@ const PROVIDERS = {
 
       const estimatedInputTokens = Math.ceil(chars / 4)
 
-      return estimatedInputTokens <= 3500
+      return estimatedInputTokens <= 3500 && max_tokens <= 2048
     },
 
     run: ctx =>
       openAICompatible({
         ...ctx,
         url: 'https://api.groq.com/openai/v1/chat/completions',
-        headers: {}
+        headers: {},
+        // gpt-oss models are reasoning models; "low" keeps them fast and cheap.
+        // If Groq rejects the parameter, the request is retried without it.
+        extra: /gpt-oss/i.test(ctx.model) ? { reasoning_effort: 'low' } : {}
       })
   }
 }
@@ -126,9 +149,13 @@ async function openAICompatible({
   temperature,
   max_tokens,
   json,
-  signal
+  signal,
+  extra = {}
 }) {
-  const send = jsonMode =>
+  const hasOptionalParams = json || Object.keys(extra).length > 0
+
+  // "rich" = with JSON mode and provider-specific extras.
+  const send = rich =>
     fetch(url, {
       method: 'POST',
       signal,
@@ -142,22 +169,23 @@ async function openAICompatible({
         messages,
         temperature,
         max_tokens,
-        ...(jsonMode
+        ...(rich
           ? {
-              response_format: {
-                type: 'json_object'
-              }
+              ...extra,
+              ...(json
+                ? { response_format: { type: 'json_object' } }
+                : {})
             }
           : {})
       })
     })
 
-  let response = await send(json)
+  let response = await send(true)
 
-  // Some models do not support JSON response mode.
-  // Retry without JSON mode when the provider rejects that parameter.
+  // Some models reject JSON mode or extra parameters.
+  // Retry once with a plain request before giving up on this model.
   if (
-    json &&
+    hasOptionalParams &&
     (response.status === 400 || response.status === 422)
   ) {
     response = await send(false)
@@ -363,6 +391,150 @@ function buildAttempts(request) {
 }
 
 // ─────────────────────────────────────────────────────
+// RUN ONE ATTEMPT AND VALIDATE ITS ANSWER
+// Throws on any problem so the caller moves on to the next provider.
+// ─────────────────────────────────────────────────────
+
+async function runAttempt({ name, provider, model }, request, signal) {
+  // Groq gets a smaller output allowance to reduce rate-limit pressure.
+  const wanted =
+    name === 'groq'
+      ? Math.min(request.max_tokens, 2048)
+      : request.max_tokens
+
+  const { text, finish } = await provider.run({
+    ...request,
+    max_tokens: Math.max(wanted, MIN_OUTPUT_TOKENS),
+    key: provider.key(),
+    model,
+    signal
+  })
+
+  if (!String(text || '').trim()) {
+    throw new Error(
+      finish === 'length'
+        ? 'Output truncated (no content)'
+        : 'Empty response'
+    )
+  }
+
+  // Plain-text requests (hints) accept the answer as it is.
+  if (!request.json) {
+    return text
+  }
+
+  // A cut-off or malformed JSON answer is useless — try the next provider.
+  if (finish === 'length') {
+    throw new Error('Output truncated')
+  }
+
+  const valid = toValidJson(text)
+
+  if (!valid) {
+    throw new Error('Invalid JSON output')
+  }
+
+  return valid
+}
+
+// ─────────────────────────────────────────────────────
+// RACE THE ATTEMPTS (staggered)
+//
+// Starts the first attempt. The next one starts when
+//   - the running one(s) have all failed, or
+//   - `staggerMs` has passed without an answer.
+// The first valid answer wins and everything else is cancelled.
+// Resolves { winner, failures }; winner is null if nothing worked in time.
+// ─────────────────────────────────────────────────────
+
+function raceAttempts(attempts, request, { staggerMs, deadlineAt }) {
+  return new Promise(resolve => {
+    const failures = []
+    const controllers = []
+    const running = new Set()
+
+    let nextIndex = 0
+    let finished = false
+    let staggerTimer = null
+
+    const deadlineTimer = setTimeout(
+      () => finish(null),
+      Math.max(deadlineAt - Date.now(), 0)
+    )
+
+    function finish(winner) {
+      if (finished) return
+      finished = true
+
+      clearTimeout(staggerTimer)
+      clearTimeout(deadlineTimer)
+
+      if (!winner) {
+        for (const label of running) {
+          failures.push(`${label}: no answer before the time limit`)
+        }
+      }
+
+      for (const controller of controllers) {
+        controller.abort()
+      }
+
+      resolve({ winner, failures })
+    }
+
+    function launchNext() {
+      clearTimeout(staggerTimer)
+
+      if (finished) return
+
+      if (nextIndex >= attempts.length) {
+        if (running.size === 0) finish(null)
+        return
+      }
+
+      const attempt = attempts[nextIndex++]
+      const label = `${attempt.name}/${attempt.model}`
+      const controller = new AbortController()
+
+      controllers.push(controller)
+      running.add(label)
+
+      console.log('[ExamBrain] Trying AI provider:', attempt.name, attempt.model)
+
+      runAttempt(attempt, request, controller.signal).then(
+        content => {
+          running.delete(label)
+          finish({ ...attempt, content })
+        },
+        error => {
+          running.delete(label)
+          if (finished) return
+
+          const reason = error.message || String(error)
+          failures.push(`${label}: ${reason}`)
+
+          console.warn(
+            '[ExamBrain] AI attempt failed:',
+            attempt.name,
+            attempt.model,
+            reason
+          )
+
+          // Nothing else is running — move on right away.
+          if (running.size === 0) launchNext()
+        }
+      )
+
+      if (nextIndex < attempts.length) {
+        staggerTimer = setTimeout(launchNext, staggerMs)
+      }
+    }
+
+    launchNext()
+  })
+}
+
+// ─────────────────────────────────────────────────────
 // API HANDLER
 // ─────────────────────────────────────────────────────
 
@@ -456,114 +628,38 @@ export default async function handler(req, res) {
       })
   }
 
-  const failures = []
-
-  for (const { name, provider, model } of attempts) {
-    const elapsed = Date.now() - startedAt
-    const remaining = TOTAL_BUDGET_MS - elapsed
-
-    if (remaining < 3000) {
-      console.warn(
-        '[ExamBrain] Stopping provider attempts: time budget nearly exhausted.'
-      )
-      break
+  const { winner, failures } = await raceAttempts(
+    attempts,
+    request,
+    {
+      staggerMs:
+        request.max_tokens <= 1024 ? STAGGER_SMALL_MS : STAGGER_MS,
+      // Leave a little room to send the response before Vercel's limit.
+      deadlineAt: startedAt + TOTAL_BUDGET_MS - 1500
     }
+  )
 
-    const controller = new AbortController()
+  if (winner) {
+    console.log('[ExamBrain] AI success:', {
+      provider: winner.name,
+      model: winner.model,
+      ms: Date.now() - startedAt
+    })
 
-    const timeout = Math.min(
-      ATTEMPT_TIMEOUT_MS,
-      remaining - 1000
-    )
-
-    const timer = setTimeout(
-      () => controller.abort(),
-      timeout
-    )
-
-    try {
-      console.log(
-        '[ExamBrain] Trying AI provider:',
-        name,
-        model
-      )
-
-      // Groq gets a smaller output allowance to reduce rate-limit pressure.
-      const providerMaxTokens =
-        name === 'groq'
-          ? Math.min(request.max_tokens, 2048)
-          : request.max_tokens
-
-      const { text, finish } = await provider.run({
-        ...request,
-        max_tokens: providerMaxTokens,
-        key: provider.key(),
-        model,
-        signal: controller.signal
-      })
-
-      if (!String(text || '').trim()) {
-        throw new Error('Empty response')
-      }
-
-      let content = text
-
-      if (request.json) {
-        const valid =
-          finish === 'length'
-            ? null
-            : toValidJson(text)
-
-        if (!valid) {
-          throw new Error(
-            finish === 'length'
-              ? 'Output truncated'
-              : 'Invalid JSON output'
-          )
-        }
-
-        content = valid
-      }
-
-      console.log('[ExamBrain] AI success:', {
-        provider: name,
-        model,
-        ms: Date.now() - startedAt
-      })
-
-      return res
-        .status(200)
-        .json({
-          choices: [
-            {
-              message: {
-                role: 'assistant',
-                content
-              }
+    return res
+      .status(200)
+      .json({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: winner.content
             }
-          ],
-          provider: name,
-          model
-        })
-    } catch (error) {
-      const reason =
-        error.name === 'AbortError'
-          ? `Timed out after ${timeout}ms`
-          : error.message
-
-      failures.push(
-        `${name}/${model}: ${reason}`
-      )
-
-      console.warn(
-        '[ExamBrain] AI attempt failed:',
-        name,
-        model,
-        reason
-      )
-    } finally {
-      clearTimeout(timer)
-    }
+          }
+        ],
+        provider: winner.name,
+        model: winner.model
+      })
   }
 
   console.error(

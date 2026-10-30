@@ -40,6 +40,26 @@ const csv = (value, fallback) =>
     .map(s => s.trim())
     .filter(Boolean)
 
+// Wait that can be cancelled (so a finished request never leaves a timer running).
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer)
+      const error = new Error('aborted')
+      error.name = 'AbortError'
+      reject(error)
+    }
+
+    if (signal?.aborted) return abort()
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+
 // ─────────────────────────────────────────────────────
 // PROVIDERS
 // ─────────────────────────────────────────────────────
@@ -49,10 +69,14 @@ const PROVIDERS = {
   openrouter: {
     key: () => process.env.OPENROUTER_API_KEY,
 
+    // Pinned models on purpose, NOT "openrouter/free": that router picks a RANDOM free
+    // model every time, including tiny ones (a 2.6B model was picked in production) that
+    // cannot write a full quiz. Slugs are from OpenRouter's free list (Oct 2026). Free
+    // models change often: set OPENROUTER_MODELS (comma-separated) when one disappears.
     models: () =>
       csv(
         process.env.OPENROUTER_MODELS,
-        'openrouter/free'
+        'google/gemma-4-31b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-26b-a4b-it:free'
       ),
 
     run: ctx =>
@@ -62,7 +86,11 @@ const PROVIDERS = {
         headers: {
           'HTTP-Referer': 'https://exambrain.me',
           'X-Title': 'ExamBrain'
-        }
+        },
+        // Reasoning models count their "thinking" against max_tokens. Uncapped, a model can
+        // spend the whole budget thinking and return an EMPTY answer (finish_reason "length").
+        // Models without this setting ignore it, or the request is retried without it.
+        extra: { reasoning: { effort: 'low' } }
       })
   },
 
@@ -70,10 +98,14 @@ const PROVIDERS = {
   nvidia: {
     key: () => process.env.NVIDIA_API_KEY,
 
+    // NOTE (Oct 2026): many personal NVIDIA accounts get "403 Authorization failed" on chat
+    // completions because the "Public API Endpoints" permission is missing on the account.
+    // That is on NVIDIA's side, not a code or key problem. A 403 returns instantly, so
+    // leaving NVIDIA in the list costs nothing.
     models: () =>
       csv(
         process.env.NVIDIA_MODELS,
-        'meta/llama-3.3-70b-instruct'
+        'nvidia/nemotron-3-super-120b-a12b'
       ),
 
     run: ctx =>
@@ -85,16 +117,41 @@ const PROVIDERS = {
   },
 
   // 3. Gemini — third provider
+  // Free-tier quotas are per MODEL. As of Oct 2026, gemini-3.6-flash allows only about
+  // 20 requests/day (5/min) while each Flash-Lite model allows about 500/day (10/min).
+  // So the Lite models go first and 3.6 Flash is the last resort. Check your real limits
+  // in Google AI Studio -> Rate limits. Override with GEMINI_MODEL (comma-separated).
   gemini: {
     key: () => process.env.GEMINI_API_KEY,
 
     models: () =>
       csv(
         process.env.GEMINI_MODEL,
-        'gemini-3.6-flash'
+        'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.6-flash'
       ),
 
     run: ctx => geminiNative(ctx)
+  },
+
+  // Optional extra provider. Not used unless "mistral" is in AI_PROVIDER_ORDER AND
+  // MISTRAL_API_KEY is set. Mistral says its free tier is "to try and explore the API"
+  // (not for production) and publishes no fixed limits (see console.mistral.ai/limits),
+  // so treat it as an extra fallback only. The default model alias is untested.
+  mistral: {
+    key: () => process.env.MISTRAL_API_KEY,
+
+    models: () =>
+      csv(
+        process.env.MISTRAL_MODEL,
+        'mistral-small-latest'
+      ),
+
+    run: ctx =>
+      openAICompatible({
+        ...ctx,
+        url: 'https://api.mistral.ai/v1/chat/completions',
+        headers: {}
+      })
   },
 
   // 4. Groq — last fallback
@@ -228,55 +285,49 @@ async function geminiNative({
   json,
   signal
 }) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+
+  const systemText = messages
+    .filter(message => message.role === 'system')
+    .map(message => String(message.content || ''))
+    .join('\n')
+
+  const requestBody = JSON.stringify({
+    contents: messages
+      .filter(message => message.role !== 'system')
+      .map(message => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: String(message.content || '') }]
+      })),
+    ...(systemText
+      ? { systemInstruction: { parts: [{ text: systemText }] } }
+      : {}),
+    generationConfig: {
+      temperature,
+      maxOutputTokens: max_tokens,
+      ...(json ? { responseMimeType: 'application/json' } : {})
+    }
+  })
+
+  const send = () =>
+    fetch(url, {
       method: 'POST',
       signal,
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': key
       },
-      body: JSON.stringify({
-        contents: messages
-          .filter(message => message.role !== 'system')
-          .map(message => ({
-            role:
-              message.role === 'assistant'
-                ? 'model'
-                : 'user',
-            parts: [
-              {
-                text: String(message.content || '')
-              }
-            ]
-          })),
-        ...(messages.some(message => message.role === 'system')
-          ? {
-              systemInstruction: {
-                parts: [
-                  {
-                    text: messages
-                      .filter(message => message.role === 'system')
-                      .map(message => String(message.content || ''))
-                      .join('\n')
-                  }
-                ]
-              }
-            }
-          : {}),
-        generationConfig: {
-          temperature,
-          maxOutputTokens: max_tokens,
-          ...(json
-            ? {
-                responseMimeType: 'application/json'
-              }
-            : {})
-        }
-      })
-    }
-  )
+      body: requestBody
+    })
+
+  let response = await send()
+
+  // 503 = Google is overloaded for a moment, and one quick retry often gets through.
+  // 429 = quota used up: retrying would not help, so that goes straight to the next model.
+  if (response.status === 503) {
+    await sleep(1500, signal)
+    response = await send()
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')

@@ -116,11 +116,18 @@ export default function SupportExamBrain() {
             Scan & Pay using any UPI app
           </p>
 
-          <img
-            src="/exambrain-upi-qr.jpeg"
-            alt="ExamBrain UPI donation QR code"
-            className="w-56 h-auto max-w-full mx-auto my-4 rounded-lg"
-          />
+         <img
+  src="/exambrain-upi-qr.jpeg"
+  alt="ExamBrain UPI donation QR code"
+  style={{
+    width: '160px',
+    height: 'auto',
+    maxWidth: '100%',
+    display: 'block',
+    margin: '16px auto',
+    borderRadius: '12px'
+  }}
+/>
 
           <p className="text-xs text-[#78634e]">
             UPI ID

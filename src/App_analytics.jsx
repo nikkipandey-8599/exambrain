@@ -1,3 +1,4 @@
+import SupportExamBrain from './components/SupportExamBrain'
 import { useState, useEffect } from 'react'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
@@ -102,7 +103,8 @@ export default function App() {
               {screen === 'reviews'    && <ReviewSection user={user} onUnseenChange={setUnseenReplies} />}
             </div>
           </main>
-
+          <SupportExamBrain />
+<BottomNav screen={screen} setScreen={navigate} unseenReplies={unseenReplies} />
           <BottomNav screen={screen} setScreen={navigate} unseenReplies={unseenReplies} />
         </>
       )}

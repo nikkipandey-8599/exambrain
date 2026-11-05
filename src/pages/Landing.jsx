@@ -86,8 +86,9 @@ const T = {
     ],
     cta2_h: 'Ready to study smarter?',
     cta2_s: 'No account needed to start.',
-    cta2_b: 'Try ExamBrain Free',
+    cta2_b: 'Create a free account to start studying · AI-powered · PWA supported',
   },
+}
   
 function FAQ({ q, a }) {
   const [open, setOpen] = useState(false)

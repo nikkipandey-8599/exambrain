@@ -50,7 +50,7 @@ const C = {
 const T = {
   en: {
     nav: 'Open App',
-    tag: 'Free · No credit card',
+    tag: 'Free to get started',
     h1a: 'Turn your notes into',
     h1b: 'an exam toolkit.',
     sub: 'Paste any lecture notes. Get quizzes, flashcards, and a full score report — in seconds.',
@@ -58,7 +58,7 @@ const T = {
     ghost: 'See how it works',
     how_l: 'HOW IT WORKS',
     how_h: 'Three steps to exam ready.',
-    how_s: 'No setup, no account, no friction.',
+    how_s: 'Create your free account and start preparing for exams.',
     steps: [
       { n: '01', t: 'Paste your notes', d: 'Any subject, any format. Lecture notes, textbook chapters, PDFs, images.' },
       { n: '02', t: 'AI builds your kit', d: 'LLaMA 3.3 70B writes 10 MCQs, 5 short answers and 12 flashcards from your content.' },
@@ -77,15 +77,15 @@ const T = {
     faq_l: 'FAQ',
     faq_h: 'Common questions.',
     faqs: [
-      { q: 'Is it completely free?', a: 'Yes. No signup required, no credit card, no limits ever.' },
+      { q: 'Is it completely free?', a: 'Yes. ExamBrain is free to use. Create a free account to access the study tools.' },
       { q: 'Which subjects work?', a: 'Any subject — history, sciences, law, medicine, engineering, languages, commerce.' },
       { q: 'How is this different from Quizlet?', a: 'ExamBrain generates questions from your own notes automatically. No manual card creation. It also grades written answers with detailed AI feedback.' },
       { q: 'Does it work offline?', a: 'Yes. After your first visit the full app works offline. All sessions are saved on your device.' },
       { q: 'Can I install it on my phone?', a: 'Yes. On Android open in Chrome and tap Add to Home Screen. On iOS open in Safari, tap Share, then Add to Home Screen.' },
-      { q: 'Is my data private?', a: 'Your notes never leave your device unless you choose to sign in for cloud sync. Even then, only you can see your data.' },
+      { q: 'Is my data private?', a: 'Your study materials are associated with your account. We use AI services to generate study materials from your content.' },
     ],
     cta2_h: 'Ready to study smarter?',
-    cta2_s: 'No account needed to start.',
+    cta2_s: 'Create a free account and start studying smarter.',
     cta2_b: 'Create a free account to start studying · AI-powered · PWA supported',
   },
 }

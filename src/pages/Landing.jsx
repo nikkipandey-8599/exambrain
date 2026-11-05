@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ChevronDown, Globe } from 'lucide-react'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 import { loadVanta, initBirds } from '../utils/vanta'
 
 function useInView(threshold = 0.1) {
@@ -88,47 +88,7 @@ const T = {
     cta2_s: 'No account needed to start.',
     cta2_b: 'Try ExamBrain Free',
   },
-  hi: {
-    nav: 'ऐप खोलें',
-    tag: 'मुफ़्त · बिना क्रेडिट कार्ड',
-    h1a: 'अपने नोट्स को बदलें',
-    h1b: 'परीक्षा किट में।',
-    sub: 'कोई भी नोट्स पेस्ट करें। क्विज़, फ्लैशकार्ड और स्कोर रिपोर्ट — सेकंडों में।',
-    cta: 'शुरू करें',
-    ghost: 'कैसे काम करता है',
-    how_l: 'यह कैसे काम करता है',
-    how_h: 'तीन आसान कदम।',
-    how_s: 'कोई सेटअप नहीं, कोई अकाउंट नहीं।',
-    steps: [
-      { n: '01', t: 'नोट्स पेस्ट करें', d: 'कोई भी विषय। लेक्चर नोट्स, पाठ्यपुस्तक, PDF या तस्वीरें।' },
-      { n: '02', t: 'AI किट बनाता है', d: 'LLaMA 3.3 70B तुरंत 10 MCQ, 5 लघु उत्तर और 12 फ्लैशकार्ड बनाता है।' },
-      { n: '03', t: 'पढ़ें और सुधरें', d: 'क्विज़ दें, कार्ड पलटें, देखें कौन से टॉपिक कमज़ोर हैं।' },
-    ],
-    feat_l: 'विशेषताएं',
-    feat_h: 'परीक्षा की तैयारी के लिए सब कुछ।',
-    feats: [
-      { i: '◉', t: '10 MCQ', d: 'आसान, मध्यम और कठिन। हर उत्तर के बाद स्पष्टीकरण।' },
-      { i: '◎', t: 'लघु उत्तर', d: 'AI आपके उत्तरों को 0–100 में ग्रेड करता है।' },
-      { i: '◈', t: 'फ्लैशकार्ड', d: '3D फ्लिप कार्ड, टेक्स्ट-टू-स्पीच और महारत ट्रैकिंग।' },
-      { i: '◆', t: 'स्कोर रिपोर्ट', d: 'विषय विश्लेषण, कमज़ोर क्षेत्र, PDF एक्सपोर्ट।' },
-      { i: '◇', t: 'स्ट्रीक', d: 'दैनिक अध्ययन स्ट्रीक और 6 उपलब्धि बैज।' },
-      { i: '◉', t: 'ऑफलाइन काम करे', d: 'किसी भी फोन पर इंस्टॉल करें। पहली विज़िट के बाद ऑफलाइन।' },
-    ],
-    faq_l: 'सवाल-जवाब',
-    faq_h: 'अक्सर पूछे जाने वाले सवाल।',
-    faqs: [
-      { q: 'क्या यह पूरी तरह मुफ़्त है?', a: 'हाँ। कोई साइनअप नहीं, कोई क्रेडिट कार्ड नहीं, कोई सीमा नहीं।' },
-      { q: 'कौन से विषय काम करते हैं?', a: 'कोई भी — इतिहास, विज्ञान, कानून, चिकित्सा, इंजीनियरिंग, वाणिज्य।' },
-      { q: 'Quizlet से कैसे अलग है?', a: 'ExamBrain आपके नोट्स से स्वचालित रूप से प्रश्न बनाता है। कोई मैन्युअल कार्ड नहीं।' },
-      { q: 'क्या यह ऑफलाइन काम करता है?', a: 'हाँ। पहली विज़िट के बाद पूरी तरह ऑफलाइन।' },
-      { q: 'क्या मेरा डेटा सुरक्षित है?', a: 'आपके नोट्स आपके डिवाइस पर ही रहते हैं जब तक आप साइन इन नहीं करते।' },
-    ],
-    cta2_h: 'स्मार्ट तरीके से पढ़ने के लिए तैयार?',
-    cta2_s: 'शुरू करने के लिए अकाउंट नहीं चाहिए।',
-    cta2_b: 'ExamBrain मुफ़्त आज़माएं',
-  }
-}
-
+  
 function FAQ({ q, a }) {
   const [open, setOpen] = useState(false)
   return (
@@ -151,10 +111,9 @@ function FAQ({ q, a }) {
 }
 
 export default function Landing({ onEnterApp }) {
-  const [lang, setLang] = useState('en')
   const heroRef = useRef(null)
-  const vantaEffect = useRef(null)
-  const t = T[lang]
+const vantaEffect = useRef(null)
+const t = T.en
   const isDark = false // landing always light
 
   useEffect(() => {
@@ -187,14 +146,7 @@ export default function Landing({ onEnterApp }) {
           <span style={{ fontSize: '1rem', fontWeight: 700, color: C.accent, fontFamily: 'Georgia,serif' }}>ExamBrain</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={() => setLang(l => l === 'en' ? 'hi' : 'en')} style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: 'none', border: `1px solid ${C.border}`, borderRadius: 7,
-            padding: '0.3rem 0.65rem', fontSize: '0.77rem', color: C.brownL,
-            cursor: 'pointer', fontFamily: 'system-ui'
-          }}>
-            <Globe size={12} /> {lang === 'en' ? 'हिंदी' : 'English'}
-          </button>
+      
           <button onClick={onEnterApp} style={{
             background: C.accent, color: C.cream, border: 'none',
             borderRadius: 7, padding: '0.42rem 1.1rem',

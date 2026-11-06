@@ -1,3 +1,4 @@
+import GenerationFeedback from '../components/GenerationFeedback'
 import { useState, useRef } from 'react'
 import { Upload, X, ChevronDown, ChevronUp, Zap, BookOpen } from 'lucide-react'
 import useExamStore from '../store/examStore'
@@ -419,7 +420,14 @@ export default function Home({ setScreen, user }) {
     </div>
   </div>
 )}
-
+        
+{/* Optional generation feedback */}
+{justGenerated && user && (
+  <GenerationFeedback
+    user={user}
+    topic={examContent?.topic}
+  />
+)}
         {/* Sample notes */}
         <div style={{ marginTop: '1.25rem', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <button onClick={() => setSampleOpen(o => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1rem', background: 'var(--bg-secondary)', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'system-ui', fontSize: '0.82rem' }}>

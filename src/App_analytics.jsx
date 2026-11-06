@@ -1,3 +1,4 @@
+import AdminFeedback from './pages/AdminFeedback'
 import { useState, useEffect } from 'react'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
@@ -94,6 +95,7 @@ export default function App() {
 
           <main>
             <div key={screen} className="tab-page">
+              {screen === 'admin-feedback' && <AdminFeedback user={user} />}
               {screen === 'home'       && <Home setScreen={navigate} user={user} />}
               {screen === 'quiz'       && <Quiz setScreen={navigate} user={user} />}
               {screen === 'flashcards' && <Flashcards setScreen={navigate} />}
@@ -103,7 +105,7 @@ export default function App() {
             </div>
           </main>
 
-          <BottomNav screen={screen} setScreen={navigate} unseenReplies={unseenReplies} />
+          <BottomNav   screen={screen}   setScreen={navigate}   unseenReplies={unseenReplies}   user={user} />
         </>
       )}
     </div>

@@ -158,7 +158,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: 'ExamBrain <noreply@exambrain.me>',
-        replyTo: 'nikkipandey392@gmail.com',
+        reply_to: 'nikkipandey392@gmail.com',
         to: [recipient],
         subject: 'ExamBrain Team replied to your review 💬',
         html: `

@@ -103,19 +103,55 @@ function ReviewCard({ review, isAdmin, currentUserId, onDelete, onReply, onEdit,
     }
   }
 
-  async function handleSaveReply() {
-    if (!replyText.trim()) return
-    setSavingReply(true)
-    try {
-      const { error } = await supabase.from('reviews')
-        .update({ admin_reply: replyText.trim(), admin_replied_at: new Date().toISOString() })
-        .eq('id', review.id)
-      if (error) throw error
-      onReply(review.id, replyText.trim())
-      setShowReplyBox(false)
-    } catch(e) { showToast.error('Reply failed: ' + e.message) }
-    finally { setSavingReply(false) }
+ 
+async function handleSaveReply() {
+  if (!replyText.trim()) return
+  setSavingReply(true)
+
+  try {
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabase.auth.getSession()
+
+    if (sessionError) throw sessionError
+    if (!session?.access_token) {
+      throw new Error('Please sign in again')
+    }
+
+    const response = await fetch('/api/review-reply', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        reviewId: review.id,
+        reply: replyText.trim()
+      })
+    })
+
+    const result = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Could not post reply')
+    }
+
+    onReply(review.id, replyText.trim())
+    setShowReplyBox(false)
+
+    if (result.emailSent) {
+      showToast.success('Reply posted and email notification sent! ✉️')
+    } else {
+      showToast.success('Reply posted. Email notification was not sent.')
+    }
+  } catch (e) {
+    showToast.error('Reply failed: ' + e.message)
+  } finally {
+    setSavingReply(false)
   }
+}
+
 
   async function handleSaveEdit() {
     if (!editStars) { showToast.error('Please select stars'); return }
